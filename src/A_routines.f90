@@ -403,7 +403,7 @@ end do
 
 
 
-subroutine preles(weather,DOY,fAPAR,prelesOut,pars,GPP,ET,SW,etmodel)!,p0)
+subroutine preles(weather,DOY,fAPAR,prelesOut,pars,GPP,ET,SW,etmodel,CO2model)!,p0)
 
 implicit none
 
@@ -421,7 +421,7 @@ implicit none
 		Sinit,t0,tcrit,tsumcrit, &	
 		etmodel, LOGFLAG,NofDays, &
 		day, &!!!!this is DOY
-		transp, evap, fWE) BIND(C)
+		transp, evap, fWE,CO2model) BIND(C)
     USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT, C_CHAR, C_PTR, C_DOUBLE	
      real ( C_DOUBLE ) :: PAR(365), TAir(365), VPD(365), Precip(365), CO2(365), fAPARc(365)
      real ( c_double ) :: GPPmeas(365), ETmeas(365), SWmeas(365)
@@ -433,7 +433,7 @@ implicit none
      real ( c_double ) :: ETbeta, ETkappa, ETchi,ETsoilthres,ETnu, MeltCoef
      real ( c_double ) :: I0,CWmax,SnowThreshold,T_0,SWinit,CWinit,SOGinit
      real ( c_double ) :: Sinit,t0,tcrit,tsumcrit
-     integer(c_int) :: etmodel, LOGFLAG,NofDays
+     integer(c_int) :: etmodel, LOGFLAG,NofDays,CO2model
      integer(c_int) :: day(365)
      real ( c_double ) :: transp(365), evap(365), fWE(365)
    END SUBROUTINE call_preles
@@ -442,7 +442,7 @@ implicit none
  real (kind=8), intent(in) :: weather(365,5),fAPAR(365)
  real (kind=8), intent(out) :: prelesOut(16)!,p0
  real (kind=8), intent(inout) :: pars(30)
- integer, intent(in):: DOY(365), etmodel
+ integer, intent(in):: DOY(365), etmodel,CO2model
 
      real (kind=8) PAR(365), TAir(365), VPD(365), Precip(365), CO2(365), fAPARc(365)
      real (kind=8) GPPmeas(365), ETmeas(365), SWmeas(365)
@@ -529,7 +529,7 @@ fAPARc = fAPAR
 		Sinit,t0,tcrit,tsumcrit, & !end parameters	
 		etmodel, LOGFLAG, NofDays, &
 		day, &!!!!this is DOY
-		transp, evap, fWE)
+		transp, evap, fWE,CO2model)
 
  call SMIfromPRELES(GPP,fW,prelesOut(7))
 
@@ -2325,25 +2325,28 @@ endsubroutine
 
 !!calculate the soil moisture index to be used in the bark beatle disturbance calculations
 subroutine SMIfromPRELES(GPP,fW,SMI)
- real (kind=8), intent(in) :: GPP(365),fW(365)
- real (kind=8), intent(out) :: SMI
- integer :: startSeason, endSeason
-
- startSeason = 1
-   do while (GPP(startSeason) <= 0. .and. startSeason < 366)
+  real (kind=8), intent(in) :: GPP(365),fW(365)
+  real (kind=8), intent(out) :: SMI
+  real(kind=8) :: gpp_threshold
+  integer :: startSeason, endSeason
+  
+  gpp_threshold=5.d0 !!!!gpp threshold that should be considered for start and end of the season
+  
+  startSeason = 1
+  do while (GPP(startSeason) <= gpp_threshold .and. startSeason < 366)
     startSeason = startSeason + 1
-   enddo
-   
- endSeason = 365
-   do while (GPP(endSeason) <= 0. .and. endSeason > 1)
+  enddo
+  
+  endSeason = 365
+  do while (GPP(endSeason) <= gpp_threshold .and. endSeason > 1)
     endSeason = endSeason - 1
-   enddo
+  enddo
   
   SMI = sum(fW(startSeason:endSeason))/(endSeason-startSeason+1)
-   
-   ! write(1,*) startSeason, endSeason,SMI
-   
-   ! close(1) 
+  
+  ! write(1,*) startSeason, endSeason,SMI
+  
+  ! close(1) 
 endsubroutine
 
 
@@ -2371,4 +2374,49 @@ subroutine calcAlfarFert_MultiSite(siteTAlpha,latitude,species,pCrobas,nLayers,n
 		siteTAlpha(i,yearFert(i):(maxYearSim+yearFert(i)-1),:,:) = siteTAlphaX(1:maxYearSim,:,:)
 
 	end do
+endsubroutine
+
+
+!order a vector in descendete order
+subroutine order_desc(v_size,vector_x,v_descendente)
+  integer, intent(in) :: v_size
+  real(8),intent(in) :: vector_x(v_size)
+  integer,intent(out) :: v_descendente(v_size)
+  LOGICAL, DIMENSION(v_size) :: mk
+  real(8) :: indx(1)
+  integer ix
+! open(1,file="test1.txt")
+mk = .TRUE.
+DO ix = 1, v_size
+   ! write(1,*) MAXVAL(vector_x,mk)
+   indx = MAXLOC(vector_x,mask=mk,dim=1)
+   v_descendente(ix) = int(indx(1))
+   ! write(1,*)  MAXLOC(vector_x,mask=mk,dim=1)
+   mk(MAXLOC(vector_x,mk)) = .FALSE.
+END DO
+! close(1)
+endsubroutine
+
+
+!!calculate minimum fAPAR of last 15 years
+subroutine minFaparCalc(fAPARtrees,nYears,minFapar,fAparFactor)
+   integer, intent(in) :: nYears
+   real (kind=8), intent(in) :: fAPARtrees(nYears), fAparFactor
+   real (kind=8), intent(out) :: minFapar
+   integer :: lastYears = 5 !lastYears are the number of years before the current years that should not be considered in the minimum fAPAR calculations
+   integer :: maxYears =15 !maxYears are the total number of years before the current years that should be considered in the minimum fAPAR calculations
+   integer :: firstYear
+   
+   if(nYears <= lastYears) minFapar = fAPARtrees(1)*fAparFactor
+   if(nYears > lastYears .and. nYears <= int((maxYears - lastYears)/2)) minFapar = minval(fAPARtrees(1:(nYears-5)))*fAparFactor
+   if(nYears > lastYears .and. nYears > int((maxYears - lastYears)/2)) then
+   if((nYears-maxYears+1) < 0) then
+    firstYear=1
+    minFapar = minval(fAPARtrees(firstYear:(nYears-5)))*fAparFactor
+   else
+    firstYear = nYears-maxYears+1
+    minFapar = minval(fAPARtrees(firstYear:(nYears-5)))  
+   endif
+   endif
+     
 endsubroutine
