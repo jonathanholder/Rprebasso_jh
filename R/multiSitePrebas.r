@@ -118,9 +118,9 @@ InitMultiSite <- function(nYearsMS,
   multiOut <- array(0, dim=c(nSites,(maxYears),nVar,maxNlayers,2),
                     dimnames = list(site=NULL,year=NULL,variable=varNam,layer=layerNam,
                                     status=c("stand","thinned")))
-  multiEnergyWood <- array(0, dim=c(nSites,(maxYears),maxNlayers,2),
-                           dimnames = list(site=NULL,year=NULL,layer=layerNam,
-                                           variable=c("volume","biomass")))
+  multiEnergyWood <- array(0, dim=c(nSites,(maxYears),maxNlayers, 17), #assorttest: ,2 -- ,8
+                              dimnames = list(site=NULL,year=NULL,layer=layerNam,
+                                           variable=c("v_harvested", "roundw_tot", "sawnwood", "pulpwood", "energywood_roundw", "energywood_tot", "energyw_stump", "stump_stem", "n_harvested", "d_harvested", "h_harvested", "qredfact", "stemwood_taper", "mgmt_type", "dummy1", "dummy2", "dummy3"))) #jhassort
   initClearcut = initSeedling.def
   if (all(is.na(multiInitClearCut))) multiInitClearCut <- matrix(initClearcut,nSites,5,byrow = T)
   # multiInitClearCut <- cbind(multiInitClearCut,0.0008025897)
@@ -732,8 +732,7 @@ regionPrebas <- function(multiSiteInit,
   
   if(length(HarvLim)==2) HarvLim <- matrix(HarvLim,multiSiteInit$maxYears,2,byrow = T)
   if(all(is.na(HarvLim))) HarvLim <- matrix(0.,multiSiteInit$maxYears,2)
-  if(all(is.na(cutAreas))) cutAreas <- matrix(-999.,(multiSiteInit$maxYears),6)
-  compHarv <- c(compHarv,thinFact)
+  if(all(is.na(cutAreas))) cutAreas <- matrix(-999.,(multiSiteInit$maxYears),9) #jhassort added 3 elements (reg thin3, comp cc, comp thin)  compHarv <- c(compHarv,thinFact)
   if(ageHarvPrior > 0.){
     sitesCl1 <- which(multiSiteInit$siteInfo[,3]<3.5)
     sitesCl2 <- which(multiSiteInit$siteInfo[,3]>3.5)
@@ -963,7 +962,7 @@ reStartRegionPrebas <- function(multiSiteInit,
   
   if(length(HarvLim)==2) HarvLim <- matrix(HarvLim,multiSiteInit$maxYears,2,byrow = T)
   if(all(is.na(HarvLim))) HarvLim <- matrix(0.,multiSiteInit$maxYears,2)
-  if(all(is.na(cutAreas))) cutAreas <- matrix(-999.,(multiSiteInit$maxYears),6)
+  if(all(is.na(cutAreas))) cutAreas <- matrix(-999.,(multiSiteInit$maxYears),9) #jhassort, 6->9 (record thinnings + comp)
   compHarv <- c(compHarv,thinFact)
   if(ageHarvPrior > 0.){
     sitesCl1 <- which(multiSiteInit$siteInfo[,3]<3.5)

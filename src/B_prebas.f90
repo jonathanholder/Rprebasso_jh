@@ -17,7 +17,8 @@ implicit none
 !! Constants
  integer, parameter :: nVar=57, npar=64, inttimes = 1 ! no. of variables, parameters, simulation time-step (always 1)
  real (kind=8), parameter :: pi = 3.1415927, t=1. , ln2 = 0.693147181
- real (kind=8), parameter :: energyRatio = 0.7, harvRatio = 0.9 !energyCut
+
+  !real (kind=8), parameter :: energyRatio = 0.7, harvRatio = 0.9 !energyCut !jhassort removed, replaced within assortment vasrrs
  integer, intent(in) :: nYears, nLayers, nSp ! no of year, layers, species (only to select param.)
  real (kind=8), intent(in) :: weatherPRELES(nYears,365,5) ! R, T, VPD, P, CO2
  integer, intent(in) :: DOY(365), etmodel, ECMmod
@@ -51,7 +52,7 @@ implicit none
  real (kind=8), intent(inout) :: dailyPRELES((nYears*365), 3) ! GPP, ET, SW
  real (kind=8), intent(inout) :: initVar(7, nLayers), P0y(nYears,2), ETSy(nYears), initCLcutRatio(nLayers), ETSstart ! initCLcutRatio sets the initial layer compositions after clearcut.
  real (kind=8), intent(inout) :: siteInfo(10)
- real (kind=8), intent(inout) :: output(nYears, nVar, nLayers, 2), energyWood(nYears, nLayers, 2) ! last dimension: 1 is for stand and 2 is for harvested sum of wood.
+ real (kind=8), intent(inout) :: output(nYears, nVar, nLayers, 2), energyWood(nYears, nLayers, 17) ! last dimension: 1 is for stand and 2 is for harvested sum of wood. jhassort: increase n of vars
  real (kind=8), intent(inout) :: soilCinOut(nYears, 5, 3, nLayers), soilCtotInOut(nYears) ! dimensions: nyears, AWENH, woody/fineWoody/foliage, layers
  real (kind=8), intent(inout) :: pYasso(35), weatherYasso(nYears,3), litterSize(3, nSp) ! litterSize dimensions: treeOrgans, species
 
@@ -93,8 +94,26 @@ implicit none
  real (kind=8) :: A_clearcut, D_clearcut, BAr(nLayers), BA_tot, BA_lim, BA_thd, ETSthres = 1000
  real (kind=8) :: dens_thd, dens_lim, Hdom_lim ! thinning parameters
 
+ !jh harvested assortments subroutines
+      !general, taper 'bucking'
+  real (kind=8) :: energyRatio, harvRatio !energyCut
+  real (kind=8), dimension(8):: stem_assort! assort() output list of stemwood volumes: roundwood, stumps, sawn, pulp, energy (tops+too short sawn/pulp), energy from roundwood (! not considering the short sawn(<1.3m-stump)/pulp sections(<~2m))
+  real (kind=8), dimension(5):: vols_raw! assort() output list of volumes: roundwood, stump ratio, sawn ratio, pulp ratio, energy ratio (tops) (all of stemwood) // can be removed in final version
+  real (kind=8) :: h_harvested, d_harvested, v_harvested, n_harvested, qred_modifier, hc_rem, lc_rem, A_rem, stumpratio
+  real (kind=8) :: felled_branch, felled_croot, turnover_fw, turnover_cw
+  integer :: assortType ! 1 = original roundwood/energywood assortments; 2 = taper/qred assortments
+  real (kind=8) :: stumprecoveryrate ! share of stumps extracted (in the case of stump removal)
+  real (kind=8), dimension(4,3):: pharv ! parameters for harvesting/assortments; 1=harvestRatio, 2=energyRatio, 3=stumpRatio, 4=qred_modifier
+  integer :: stumpsampled !/ 0/1 stump removal (based on stumpratio probability)
+      !quality reduction model
+  REAL (kind=8), DIMENSION(30,5):: coef !methätalo coefficients
+  REAL (kind=8) :: lat, lon, alt !
+  INTEGER :: mkta, peat ! 1 = pine, 2 = spruce, 3 = birch + broad
+
+
+
 !define varibles
- real (kind=8) :: sitetype, P0, age, meantemp, mintemp, maxtemp, rainfall, ETS 
+ real (kind=8) :: sitetype, P0, age, meantemp, mintemp, maxtemp, rainfall, ETS
  real (kind=8) :: H, D, B, Hc, Cw, Lc, N, Ntree, Ntot, dNtot
  real (kind=8) :: wf_treeKG, wf_STKG, sar_con, sar_ell, rc, ppow, sar, W_stem
  real (kind=8) :: lproj, leff, laPer_sar, keff, slc
@@ -103,7 +122,7 @@ implicit none
  real (kind=8) :: npp, p_eff_all, gammaC, betaC, W_c, W_s, Wdb, Wsh,nppCost
  real (kind=8) :: p_eff, par_alfar, p, gpp_sp
  real (kind=8) :: s0,par_s0scale,par_sla0,par_tsla
- real (kind=8) :: age_factor,par_fAa,par_fAb,par_fAc ! Changes in fine root allocation for young seedlings, affecting beta0 and alfar 
+ real (kind=8) :: age_factor,par_fAa,par_fAb,par_fAc ! Changes in fine root allocation for young seedlings, affecting beta0 and alfar
  real (kind=8) :: weight, dNp,dNb,dNs,perVmort
  real (kind=8) :: W_wsap, respi_m, respi_tot, V_scrown, V_bole, V, Vold
  real (kind=8) :: coeff(nLayers), denom,W_froot,W_croot, lit_wf,lit_froot
@@ -129,7 +148,7 @@ real (kind=8) :: Nmort, BAmort, VmortDist(nLayers)
  !!user thinnings
  real (kind=8) :: pHarvTrees, hW_branch, hW_croot, hW_stem, hWdb
  real (kind=8) :: remhW_branch, remhW_croot,remhW_stem,remhWdb
- 
+
  !fire disturbances
  real (kind=8) :: dailySW(365)
  real (kind=8) :: Cpool_litter_wood,Cpool_litter_green,livegrass,soil_moisture(365)
@@ -170,10 +189,10 @@ Reineke(:) = 0.
 ETSmean = ETSstart !initialise ETSmean using the starting value
 
 ! Fill in model output structure with initial values and ids.
- modOut(:,1,:,1) = siteInfo(1)  !! assign siteID 
+ modOut(:,1,:,1) = siteInfo(1)  !! assign siteID
  ! modOut(1,2,:,1) = initVar(8,:)	!! assign initial gammaC values !!newX
  modOut(1,11,:,1) = initVar(3,:) ! height of trees
- modOut(1,16,:,1) = initVar(7,:) 
+ modOut(1,16,:,1) = initVar(7,:)
  ! modOut(1,12,:,1) = initVar(4,:)
  ! modOut(1,13,:,1) = initVar(5,:)
  modOut(1,14,:,1) = initVar(6,:)
@@ -184,7 +203,7 @@ ETSmean = ETSstart !initialise ETSmean using the starting value
  modOut(2:nYears,3,:,:) = output(:,3,:,:) ! assign site type and alfar
  soilCtot(1) = sum(soilC(1,:,:,:)) !assign initial soilC
  modOut(:,45,:,1) = 0. !set heterotrophic respiration to 0
- 
+
  do i = 1,nLayers
   modOut(:,4,i,1) = initVar(1,i)  ! assign species
   modOut(:,7,i,1) = initVar(2,i) ! assign initAge !age can be made species specific assigning different ages to different species
@@ -197,7 +216,7 @@ ETSmean = ETSstart !initialise ETSmean using the starting value
 	modOut(1,17,i,1) = modOut(1,13,i,1)/(pi*((modOut(1,12,i,1)/2/100)**2))
 	modOut(1,35,i,1) = modOut(1,13,i,1)/modOut(1,17,i,1)
   else
-	modOut(1,17,i,1) = 0. 
+	modOut(1,17,i,1) = 0.
 	modOut(1,35,i,1) = 0.
   endif
 
@@ -234,10 +253,10 @@ ETSmean = ETSmean + (ETS-ETSmean)/20.
 	  modOut(year,17,ijj,1) = modOut(year,13,ijj,1)/(pi*((modOut(year,12,ijj,1)/2/100)**2))
 	  modOut(year,35,ijj,1) =  modOut(year,13,ijj,1)/modOut(year,17,ijj,1)
     else
-	  modOut(year,17,ijj,1) = 0. 
-	  modOut(year,35,ijj,1) = 0. 
+	  modOut(year,17,ijj,1) = 0.
+	  modOut(year,35,ijj,1) = 0.
     endif
-	 
+
   siteType = modOut(year,3,ijj,1) !siteInfo(3)
   !!set parameters
   par_betab = pCrobas(13,int(initVar(1,ijj)))
@@ -248,7 +267,7 @@ ETSmean = ETSmean + (ETS-ETSmean)/20.
   par_mr = pCrobas(9,int(initVar(1,ijj)))
   par_mw = pCrobas(10,int(initVar(1,ijj)))
   par_fAa = pCrobas(45,int(initVar(1,ijj)))
-  par_fAb = pCrobas(46,int(initVar(1,ijj))) 
+  par_fAb = pCrobas(46,int(initVar(1,ijj)))
   par_fAc = pCrobas(47,int(initVar(1,ijj)))
   par_c = pCrobas(7,int(initVar(1,ijj)))
   par_rhof = pCrobas(15,int(initVar(1,ijj)))
@@ -256,30 +275,30 @@ ETSmean = ETSmean + (ETS-ETSmean)/20.
   par_S_branchMod = pCrobas(27,int(initVar(1,ijj)))
   gammaC = 0. !initVarX(8,)
   ! Tbd = 10 !!!!to include in the parameters
-  
+
   !!set variables
   A = modOut(year,16,ijj,1)
   ba = modOut(year,13,ijj,1)
   d = modOut(year,12,ijj,1)
   N = ba/(pi*((d/2/100)**2))
   h = modOut(year,11,ijj,1)
-  
-  age_factor = (1. - (1. - par_fAa)/ (1. + exp((par_fAb - h)/par_fAc)))/par_fAa		
+
+  age_factor = (1. - (1. - par_fAa)/ (1. + exp((par_fAb - h)/par_fAc)))/par_fAa
   par_alfar = modOut(year,3,ijj,2) * age_factor
   ! par_alfar = pCrobas(int(20+min(siteType,5.)),int(initVar(1,ijj))) * age_factor
   par_rhor = par_alfar * par_rhof
-  
+
   hc = modOut(year,14,ijj,1)
   B = ba/N
   Lc = h - hc
   betab =  par_betab * Lc**(par_x-1)
   beta0 = par_beta0 * age_factor
-  beta1 = (beta0 + betab + par_betas) 
-  beta2 = 1. - betab - par_betas 		
+  beta1 = (beta0 + betab + par_betas)
+  beta2 = 1. - betab - par_betas
   betaC = (beta1 + gammaC * beta2) / par_betas
   wf_STKG = par_rhof * A * N
   W_froot = par_rhor * A * N  !!to check  ##newX
-  W_wsap = par_rhow * A * N * (beta1 * h + beta2 * hc) 
+  W_wsap = par_rhow * A * N * (beta1 * h + beta2 * hc)
   W_c = par_rhow * A * N * hc !sapwood stem below Crown
   W_s = par_rhow * A * N * par_betas * Lc !sapwood stem within crown
   W_branch =  par_rhow * A * N * betab * Lc !branches biomass
@@ -290,7 +309,7 @@ ETSmean = ETSmean + (ETS-ETSmean)/20.
   Wdb = 0.
   W_stem = W_c + W_s + Wsh
   V = W_stem / par_rhow
-  
+
   modOut(year,33,ijj,1) = wf_STKG
   modOut(year,25,ijj,1) = W_froot
   modOut(year,47,ijj,1) = W_wsap
@@ -302,7 +321,7 @@ ETSmean = ETSmean + (ETS-ETSmean)/20.
   modOut(year,51,ijj,1) = Wdb
   modOut(year,31,ijj,1) = W_stem
   modOut(year,30,ijj,1) = V
-  
+
    enddo
    modOut((year-Ainit):year,48,1,2) = 0.
    do ki = 1,int(Ainit)
@@ -310,7 +329,7 @@ ETSmean = ETSmean + (ETS-ETSmean)/20.
      modOut((year-Ainit+ki),7,ijj,1) = ki !#!#
      modOut((year-Ainit+ki),4,ijj,1) = initVar(1,ijj) !#!#
     enddo
-   enddo	
+   enddo
 	yearX = 0
   endif
 !!!! check if clearcut occured. If yes initialize forest (end)
@@ -334,7 +353,7 @@ ETSmean = ETSmean + (ETS-ETSmean)/20.
 	  domSp = maxloc(valX)
  	  layerX(ij) = int(domSp(1))
 	  valX(layerX(ij)) = -999.
-	
+
      Ntot = sum(STAND_all(17,layerX(1:ij)))
      B = sum(STAND_all(35,layerX(1:ij))*STAND_all(17,layerX(1:ij)))/Ntot   !!!!!!!!!#####changed
 	 ! B = STAND_all(35,layerX(1:ij))/STAND_all(17,layerX(1:ij))   !!!!!!!!!#####changed
@@ -396,13 +415,13 @@ do ij = 1 , nLayers 		!loop Species
  par_fAc = param(47)
 ! do siteNo = 1, nSites  !loop sites
 
-	!!!!update kRein and cR	 
+	!!!!update kRein and cR
 	! calculate CNration
 	if(param(50)>-999.d0 .or. param(52)>-999.d0) call CNratio(CN, latitude, siteInfo(3),pECMmod(6:8))
-	!!!!update par_kRein as a function of CN if parameters (param(50>-999.))) are are provided 
-	if(param(50)>-999.d0) call linearUpdateParam(param(50:51),CN,par_kRein) 
-	!!!!update par_cR as a function of sitetype if parameters (param(52>-999.))) are are provided 
-	if(param(52)>-999.d0) call linearUpdateParam(param(52:53),CN,par_cR) 
+	!!!!update par_kRein as a function of CN if parameters (param(50>-999.))) are are provided
+	if(param(50)>-999.d0) call linearUpdateParam(param(50:51),CN,par_kRein)
+	!!!!update par_cR as a function of sitetype if parameters (param(52>-999.))) are are provided
+	if(param(52)>-999.d0) call linearUpdateParam(param(52:53),CN,par_cR)
 
 ! initialize site variables
 !  sitetype = STAND(3)
@@ -465,7 +484,7 @@ do ij = 1 , nLayers 		!loop Species
 	  laPer_sar = wf_treeKG * par_sla / sar !leaf area per tree  /  crown surface area
 	  keff = 0.4 * (1. - exp( - par_k / 0.4 * laPer_sar)) / laPer_sar !effective extinction coefficient    }
   endif
-  
+
   !projected leaf area on the STAND -----------------------------------
   if (wf_STKG>0.) then
    lproj = par_sla * wf_STKG / 10000.
@@ -480,6 +499,21 @@ do ij = 1 , nLayers 		!loop Species
   STAND(20) = keff
   STAND(21) = lproj
   STAND(23) = weight
+
+!jhassort the following has been removed in the update
+! – does this affect the assortment calculation?
+  ! STAND(11) = H
+  ! STAND(12) = D
+  ! STAND(13) = BA ! * par_ops2
+  ! STAND(14) = Hc
+  ! STAND(15) = Cw
+  ! STAND(17) = N
+  ! STAND(33) = wf_STKG
+  ! STAND(34) = wf_treeKG
+  ! STAND(35) = B
+  ! STAND(30) = V
+!/jh
+
  else
   STAND(2) = 0. !#!#
   STAND(8:21) = 0. !#!#
@@ -497,7 +531,7 @@ end do !!!!!!!end loop layers
 if (year <= maxYearSite) then
 	nSpec = nSp
 	ll = nLayers
-	
+
 	domSp = maxloc(STAND_all(13,:))
 	layer = int(domSp(1))
 	siteType = modOut(year,3,layer,1) !siteInfo(3)
@@ -520,10 +554,10 @@ endif
 	else
 			Ainit = max(nint(6. + 2*sitetype - 0.005*(sum(modOut(year:(year+9),5,1,1))/10.) + 2.25 + 2.0),2)!! + 2.0 to account for the delay between planting and clearcut
 	endif
-	yearX = Ainit + year 
+	yearX = Ainit + year
    endif
-   
- 
+
+
      !!!ground vegetation
    !!!fapar_gv compute fapar, biomasses and litter of gv with routine
    if(gvRun==1) then
@@ -546,9 +580,9 @@ endif
    fAPAR(year) = fAPARtrees  !store fAPAR trees
    GVout(year,1) = fAPARgvX !store fAPAR GV
  	! if(fAPARsite>0.) then
-	 
-        
-  !run preles 
+
+
+  !run preles
    call preles(weatherPRELES(year,:,:),DOY,fAPARprel,prelesOut, pars, &
 		dailyPRELES((1+((year-1)*365)):(365*year),1), &  !daily GPP
 		dailyPRELES((1+((year-1)*365)):(365*year),2), &  !daily ET
@@ -557,18 +591,18 @@ endif
 
    TAir = sum(weatherPRELES(year,:,2))/365.
    Precip = sum(weatherPRELES(year,:,4))
-   
+
   !store ET of the ECOSYSTEM!!!!!!!!!!!!!!
    STAND_all(22,:) = prelesOut(2)  	!ET
    ! STAND_all(40,:) = prelesOut(15)  !aSW
-   ! STAND_all(41,:) = prelesOut(16)  !summerSW 
-  
+   ! STAND_all(41,:) = prelesOut(16)  !summerSW
+
   !store GPP
-   GVout(year,3) = prelesOut(1) * fAPARgvX/fAPARsite! GV Photosynthesis in g C m-2 
+   GVout(year,3) = prelesOut(1) * fAPARgvX/fAPARsite! GV Photosynthesis in g C m-2
    if(GVout(year,1)<0.00000001) GVout(year,:) = 0.
    STAND_all(10,:) = prelesOut(1)/1000. * fAPARtrees/fAPARsite! trees Photosynthesis in g C m-2 (converted to kg C m-2)
 
-!initialize for next year  
+!initialize for next year
    pars(24) = prelesOut(3);siteInfo(4) = prelesOut(3)!SWinit
    pars(25) = prelesOut(13); siteInfo(5) = prelesOut(13) !CWinit
    pars(26) = prelesOut(4); siteInfo(6) = prelesOut(4) !SOGinit
@@ -588,7 +622,7 @@ do ij = 1 , nLayers
  species = int(max(1.,stand(4)))
  param = pCrobas(:,species)
  sitetype=stand(3)
- 
+
    !!!reset annual litterfall
 stand_all(26:29,ij) = 0.
 stand(26:29) = 0.
@@ -596,6 +630,10 @@ s_fol = 0.
 S_fr = 0.
 S_branch = 0.
 S_wood = 0.
+
+
+STAND(37:38) = 0. !jhassort reset removals in 'remaining' dimension (Vharvested, Wharvested; 37:38)
+! these are exempted from resetting later on to pass through Vharvested (which is now filled earlier than before)
 
 !initialize ECMmodelling
 r_RT = 0.d0
@@ -644,14 +682,14 @@ exud(ij) = 0.d0
  par_fAa = param(45)
  par_fAb = param(46)
  par_fAc = param(47)
- 
-	!!!!update kRein and cR	 
+
+	!!!!update kRein and cR
 	! calculate CNration
 	if(param(50)>-999.d0 .or. param(52)>-999.d0) call CNratio(CN, latitude, siteInfo(3),pECMmod(6:8))
-	!!!!update par_kRein as a function of CN if parameters (param(50>-999.))) are are provided 
-	if(param(50)>-999.d0) call linearUpdateParam(param(50:51),CN,par_kRein) 
-	!!!!update par_cR as a function of sitetype if parameters (param(52>-999.))) are are provided 
-	if(param(52)>-999.d0) call linearUpdateParam(param(52:53),CN,par_cR) 
+	!!!!update par_kRein as a function of CN if parameters (param(50>-999.))) are are provided
+	if(param(50)>-999.d0) call linearUpdateParam(param(50:51),CN,par_kRein)
+	!!!!update par_cR as a function of sitetype if parameters (param(52>-999.))) are are provided
+	if(param(52)>-999.d0) call linearUpdateParam(param(52:53),CN,par_cR)
 
 ! do siteNo = 1, nSites  !start site loop
 
@@ -727,8 +765,8 @@ if (N>0.) then
 !  par_mr = par_mr0 * p0 / p0_ref
 !  par_mw = par_mw0 * p0 / p0_ref
 
-  
-  ! par_H0 = par_H0max * (1 - exp(-par_kH * ETS/par_alfar)) !!! attempt to improve model for diameter/heigh allocation, not used currently. 
+
+  ! par_H0 = par_H0max * (1 - exp(-par_kH * ETS/par_alfar)) !!! attempt to improve model for diameter/heigh allocation, not used currently.
   ! theta = par_thetaMax / (1. + exp(-(H - par_H0)/(par_H0*par_gamma)))   !!!! see above, get zero now
   theta = par_thetaMax
   normFactETS = 1. + par_aETS * (ETS-ETS_ref)/ETS_ref
@@ -740,7 +778,7 @@ if (N>0.) then
   par_mr = par_mr0* normFactP0 + (1+par_c) * mrFact / par_vr0    !!!new version !!newX
   par_mf = par_mf0* normFactP0
   par_mw = par_mw0* normFactP0
-  
+
   par_rhof0 = par_rhof1 * ETS_ref + par_rhof2 ! rho: pipe model parameter for foliage
   par_rhof = par_rhof1 * ETS + par_rhof2
   par_vf = par_vf0 / (1. + par_aETS * (ETS-ETS_ref)/ETS_ref)
@@ -763,7 +801,7 @@ if (N>0.) then
         s0 = 0.
     endif
 	gpp_sp = max(0.,(s0 - par_s1 * H) * wf_STKG / 10000.)
-	
+
         !---------------------------------------
         ! DYNAMIC GROWTH MODEL STARTS
         !Updating the tree H, D, Hc and Cw for the next year, according to the method by Valentine & Makela (2005)
@@ -808,18 +846,18 @@ if (N>0.) then
 			endif
 			nppCost = max(0.,(gpp_sp - Cost_m / 10000.) / (1.+par_c))  !!newX
 			npp = max(0.,(gpp_sp - Respi_m / 10000.) / (1.+par_c))  !!newX
-			
-			
+
+
 			Respi_tot = gpp_sp - npp
 				 ! ! litter fall in the absence of thinning
       S_fol = S_fol + wf_STKG / par_vf	!foliage litterfall
       S_fr  = S_fr + W_froot / par_vr	!fine root litter
 	  S_branch = max(0.,S_branch + Wdb/Tdb)
-		
+
 	  ! S_branch = S_branch + N * par_rhow * betab * A * (dHc + theta*Lc)
 
 555   	continue
-			
+
         !Height growth-----------------------
 		f1 = nppCost*10000 - (wf_STKG/par_vf) - (W_froot/par_vr) - (theta * W_wsap)!nppCost
 		f2 = (par_z* (wf_STKG + W_froot + W_wsap)* (1-gammaC) + par_z * gammaC * (W_c + &
@@ -827,7 +865,7 @@ if (N>0.) then
 		dH = max(0.,((H-Hc) * f1/f2))
 		Gf = par_z * wf_STKG/(H-Hc) * (1-gammac)*dH
 		Gr = par_z * W_froot/(H-Hc) * (1-gammac)*dH
-		
+
 		if(f1 < 0.) then
 			dH = 0.
 			mort = 888.
@@ -839,13 +877,13 @@ if (N>0.) then
 			mort = 888.
 		endif
 
-  
+
  !-----------------------------------
         !crown rise
 !         if(H - Hc > par_Cr2*100./sqrt(N)) then
 !        if(2.*hb > 100./sqrt(N) ) then
         dHc = min(gammaC * dH,(H - Hc))
-		
+
 if(time==1)then
       dHcCum = 0.
       dHCum = 0.
@@ -869,10 +907,10 @@ endif
                 dA = 0.
                 dB = 0.
             endif
-            
-! Calculate change rates for non-living wood   - DECLARE dWsh etc...          
+
+! Calculate change rates for non-living wood   - DECLARE dWsh etc...
             dWsh = max(0.,par_rhow * par_z * A/Lc * dHc * Hc * N	+ theta*(W_c + W_s))
-            dW_bh = max(0.,W_bs*theta - W_bh * gammaC * dH / Lc) 
+            dW_bh = max(0.,W_bs*theta - W_bh * gammaC * dH / Lc)
             dW_crh = max(0.,W_crs*theta + par_z * W_c * beta0 / Lc * gammaC * dH)
             dWdb = max(0.,W_branch/Lc * (par_z+1)/par_z * gammaC * dH - Wdb/Tdb)
 
@@ -887,38 +925,38 @@ endif
 		! if(siteinfo(1)==3288584.) write(1,*) nppCost,dWw,Sb, Sc , St, theta, W_wsap
 		! if(siteinfo(1)==3288584.) write(1,*) par_z, wf_STKG,H,Hc,gammac,dH, par_vf
 		! if(siteinfo(1)==3288584.) write(1,*) par_z, W_froot,H,Hc,gammac,dH, par_vr
-		
+
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! added stuff for N calculations
 if(H>0.) Then !skip N calculations if there was a clearcut and H below 1.3
 	 ! call fTyasso(pYasso,weatherYasso(Year,:),fTaweNH)
-	  
+
 ! par_NUptakeSwitch = 1 for Hyungwoo calculations
 ! par_NUptakeSwitch = 0 for Umax = 1
 ! par_NUptakeSwitch = -Umax for Umax calculations
 	  ncount = ncount + 1
 	  ! if(par_zb .lt. -0.01) then
-			! nitpar(7) = - par_NUptakeSwitch 
+			! nitpar(7) = - par_NUptakeSwitch
 		! else
 			!nitpar(7) = 12 * P0yX(year,2) / (par_alfar) / 1000. !!!!this should be Umax = Umax0*P00/CNratio fT/fT0
 	  ! endif
 	  UmaxFactor = output(year,55,ij,2) !fTaweNH(4)!exp(0.059*TAir-0.001*TAir**2) * (1-exp(-1.858*Precip))
-	  
+
 	  if(par_NUptakeSwitch > 0.) then
 		Umax = (param(63) + param(64)* P00CN) * UmaxFactor !(param(63) + param(64)* P00CN) =Umax0   ; UmaxFactor = fT/fT0
 	  else
 	    Umax = 1.0
 	  endif
-	  
+
 	  !!!update parameters for Nitrogen calculations
 	  nitpar(1:9) = param(54:62)
 	  nitpar(10) = Umax
-	  
+
 	  ! if(par_zb .gt. -0.01 .and. par_zb .lt. 0.01) nitpar(7) = 1
-	  		
+
       call Nitrogen(Gf,Gr,Gw,STAND_all(25,ij),sum(STAND_all(25,:)), siteType, latitude, CN, Nup,Ndem,nitpar, pECMmod)
-! make sure that for Umax estimation when nitpar(7) = 1 we don't reduce growth due to N deficiency	
+! make sure that for Umax estimation when nitpar(7) = 1 we don't reduce growth due to N deficiency
 	 if(par_NUptakeSwitch > 0.) then
 
 !	  write(1,*) siteInfo(1), year, S_fol,S_fr
@@ -951,21 +989,21 @@ endif
 
  ! if(siteinfo(1)==3252460.) write(1,*) stand(7),H,Gf,Gr, Gw,Nup,Ndem,Umax,P00CN,UmaxFactor
  ! if(siteinfo(1)==3252460.) write(2,*) stand(7),H,Nup,Umax, P00CN,UmaxFactor,STAND_all(25,ij),sum(STAND_all(25,:)), Ndem
-	
+
 ! end of added stuff for N calculations
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!		
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !!  Update state variables
           H = H + step * dH
           A = A + step * dA
           B = B + step * dB
 		  Hc = Hc + step * dHc
-          
+
           Wsh = Wsh + dWsh * step
           W_bh = W_bh + dW_bh * step
 		  W_crh = W_crh + dW_crh * step
 		  Wdb = Wdb + dWdb * step
-          
+
 ! Update dependent variables
       wf_treeKG = par_rhof * A
       wf_STKG = N * wf_treeKG
@@ -995,7 +1033,7 @@ endif
 		V = W_stem / par_rhow
 		W_branch = W_bs + W_bh
 		W_croot = W_crs + W_crh
-		
+
   age = age + step
 
   STAND(2) = gammaC
@@ -1051,7 +1089,50 @@ else
 	Nout(3,ij,2) = 0.
 endif
 endif
- 
+
+
+! ASSORTMENTS: SETTINGS
+!jhassort will be included as parameters/input making this obsolete
+
+! ! switch between generic/simple (1), complex/taper+qred assortments (2), and potential assortments for every year (3; invokes 2 as well, which in the case of harvests being conducted override the potentials)
+ assortType = INT(3)
+!
+!ratio of stumps extracted if they are collected (stumpsampled=T)
+stumprecoveryrate = 0.9
+! NOTE: != stumpratio (the share of segments where stump harvesting is conducted if prerequisites are met)
+
+! Parameters
+    pharv(1,:) = 0.9 !harvestRatio
+    pharv(2,:) = 0.7 !energyratio
+    pharv(3,1) = 0.5 !stumpRatio pine
+    pharv(3,2) = 1. !stumpRatio spruce
+    pharv(3,3) = 0. !stumpRatio birch
+    pharv(4,:) = 1.0 !qred_modifier
+
+
+!quality reduction
+!SUBROUTINE qred_f(mkta, sitetype, peat, lat, lon, alt, spec, d, age, ets, coef, qredfact) !n
+!NOTE: dummies for qred inputs, need to get those externally later on
+lat = 7000.
+lon = 400.
+alt = 100.
+peat = 0
+mkta = 5
+!/jh end assortment settings
+
+
+!jh POTENTIAL ASSORTMENTS (for every year)
+! in the case of harvests being conducted, these overwrite the potentials (assorttype=3))
+
+if (assortType==3) then
+
+ include 'assort_potential.h'
+
+endif !assorttype==3
+!/jh
+
+
+
   !Perform user defined thinning or defoliation events for this time period
   If (countThinning <= nThinning .and. time==inttimes) Then
    If (year == int(thinning(countThinning,1)) .and. ij == int(thinning(countThinning,3))) Then! .and. siteNo == thinning(countThinning,2)) Then
@@ -1060,8 +1141,8 @@ endif
     species = int(thinning(countThinning,2))
     stand(4) = thinning(countThinning,2)
 !!!check if ingrowth and calculate dominant species
-   if(D==0.d0 .and. H==0.d0 .and. thinning(countThinning,6)==-777.d0) then 
-    domSp = maxloc(STAND_all(13,:))  
+   if(D==0.d0 .and. H==0.d0 .and. thinning(countThinning,6)==-777.d0) then
+    domSp = maxloc(STAND_all(13,:))
     layer = int(domSp(1))
     species = int(max(1.,stand_all(4,layer)))
     stand(4) = max(1.,stand_all(4,layer))
@@ -1086,18 +1167,30 @@ endif
   !energyCut
 	 S_fol = wf_STKG + S_fol
      S_fr = W_froot + S_fr
-	 if(energyCut==1.) then
-	  energyWood(year,ij,2) = (W_branch + W_croot*0.3 + W_stem* (1-harvRatio)) * energyRatio
-	  species = int(max(1.,stand(4)))
-if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
-      S_branch = max(0.,((W_branch) * (1-energyRatio) + S_branch + Wdb + &
-				W_stem* (1-harvRatio)* (1-energyRatio) + &
-				(0.3 * (1-energyRatio)+0.7) * W_croot *0.83))
-      S_wood = S_wood + (0.3 * (1-energyRatio)+0.7) * W_croot *0.17
-	 else
-      S_branch = max(0.,(W_branch + Wdb + W_croot*0.83 + S_branch + W_stem* (1-harvRatio)))
-      S_wood = S_wood + W_croot*0.17!(1-harvRatio) takes into account of the stem residuals after thinnings
-	 endif
+     !jh below: outcommented and moved to include 'assort...'
+!  if(energyCut==1.) then
+! 	  energyWood(year,ij,2) = (W_branch + W_croot*0.3 + W_stem* (1-harvRatio)) * energyRatio
+! 	  species = int(max(1.,stand(4)))
+! if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
+!       S_branch = max(0.,((W_branch) * (1-energyRatio) + S_branch + Wdb + &
+! 				W_stem* (1-harvRatio)* (1-energyRatio) + &
+! 				(0.3 * (1-energyRatio)+0.7) * W_croot *0.83))
+!       S_wood = S_wood + (0.3 * (1-energyRatio)+0.7) * W_croot *0.17
+! 	 else
+!       S_branch = max(0.,(W_branch + Wdb + W_croot*0.83 + S_branch + W_stem* (1-harvRatio)))
+!       S_wood = S_wood + W_croot*0.17!(1-harvRatio) takes into account of the stem residuals after thinnings
+! 	 endif
+
+!/jh end outcommented
+
+
+!jh ASSORTMENTS: thinnings
+
+! ASSORTMENT CALCULATIONS
+include 'assort_thin.h'
+energyWood(year,ij,15) = 1191 !marker for (approximate) line for troubleshooting (formerly 1014, 1108)
+!/jh END ASSORTMENTS: thinnings
+
   !energyCut
      STAND(26) = S_fol
      STAND(27) = S_fr
@@ -1173,41 +1266,63 @@ if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCroba
 
 !! calculate litter including residuals from thinned trees
   !energyCut
+
+!!!ATTENTION // jhassort
+!! manual thinnings with pharvtrees outcommented for now
+!! using the 'old' generic version for assortType=1 in assort_thin.h
+!! this doesn't include the possibility of setting pHarvTrees (option to only collect pHarvTrees share of killed trees to be able to include unmanaged disturbances)
+!! to be transferred later, requires some thinking (though most of it is there in the form of harvRatio)
+!! turn to this when the assortments work otherwise
+  ! pharvtrees required in later updating bits, probably double-accounting/allocating things...
     pHarvTrees = thinning(countThinning,11)
-	S_fol = max(0.,stand(26) + stand(33) - wf_STKG)
-	S_fr = max(0.,stand(27) + stand(25) - W_froot)
+    !// START OUTCOMMENTED BIT
 
-	hW_branch = max(0.,(stand(24) - W_branch)* pHarvTrees)
-	hW_croot = max(0.,(stand(32) - W_croot)* pHarvTrees)
-	hW_stem = max(0.,(stand(31) - W_stem)* pHarvTrees)
-	hWdb = max(0.,(stand(51) - Wdb)* pHarvTrees)
-	remhW_branch = max(0.,(stand(24) - W_branch) * (1.-pHarvTrees))
-	remhW_croot = max(0.,(stand(32) - W_croot) * (1.-pHarvTrees))
-	remhW_stem = max(0.,(stand(31) - W_stem) * (1.-pHarvTrees))
-	remhWdb = max(0.,(stand(51) - Wdb) * (1.-pHarvTrees))
+! 	S_fol = max(0.,stand(26) + stand(33) - wf_STKG)
+! 	S_fr = max(0.,stand(27) + stand(25) - W_froot)
+!
+! 	hW_branch = max(0.,(stand(24) - W_branch)* pHarvTrees)
+! 	hW_croot = max(0.,(stand(32) - W_croot)* pHarvTrees)
+! 	hW_stem = max(0.,(stand(31) - W_stem)* pHarvTrees)
+! 	hWdb = max(0.,(stand(51) - Wdb)* pHarvTrees)
+! 	remhW_branch = max(0.,(stand(24) - W_branch) * (1.-pHarvTrees))
+! 	remhW_croot = max(0.,(stand(32) - W_croot) * (1.-pHarvTrees))
+! 	remhW_stem = max(0.,(stand(31) - W_stem) * (1.-pHarvTrees))
+! 	remhWdb = max(0.,(stand(51) - Wdb) * (1.-pHarvTrees))
+!
+! 	if(energyCut==1.) then
+! 	species = int(max(1.,stand(4)))
+!
+! 	 energyWood(year,ij,2) = max(0.,(hW_branch + hW_croot*0.3 + &
+! 					(hW_stem) * (1-harvRatio)) * energyRatio)
+! if(pCrobas(2,species)>0.) energyWood(year,ij,1) = max(0.,energyWood(year,ij,2) / pCrobas(2,species))
+!      S_branch = max(0.,stand(28) + hW_branch * (1-energyRatio) + hWdb +&
+! 				(0.3 * (1-energyRatio)+0.7) * hW_croot * 0.83 + &
+! 				hW_stem * (1-harvRatio) * (1-energyRatio))
+!      S_wood = max(0.,stand(29) +(0.3 * (1-energyRatio)+0.7) * (stand(32) - W_croot) *0.17)
+! 	else
+!     S_branch = max(0.,stand(28)+hW_branch+hWdb+hW_croot*0.83 + &
+! 		hW_stem * (1-harvRatio))
+!     S_wood = max(0.,stand(29)  + hW_croot*0.17)
+! 	endif
+!
+! 	!!! if part of the thinned trees is not harvested (e.g.,residues from disturbances) litterfall is updated
+! 	if(pHarvTrees < 1.) then
+! 		S_branch = S_branch + remhW_branch + remhW_croot * 0.83 + remhWdb
+! 		S_wood = S_wood + remhW_croot*0.17 + remhW_stem
+! 	endif
 
-	if(energyCut==1.) then
-	species = int(max(1.,stand(4)))
-	
-	 energyWood(year,ij,2) = max(0.,(hW_branch + hW_croot*0.3 + &
-					(hW_stem) * (1-harvRatio)) * energyRatio)
-if(pCrobas(2,species)>0.) energyWood(year,ij,1) = max(0.,energyWood(year,ij,2) / pCrobas(2,species))
-     S_branch = max(0.,stand(28) + hW_branch * (1-energyRatio) + hWdb +&
-				(0.3 * (1-energyRatio)+0.7) * hW_croot * 0.83 + &
-				hW_stem * (1-harvRatio) * (1-energyRatio))
-     S_wood = max(0.,stand(29) +(0.3 * (1-energyRatio)+0.7) * (stand(32) - W_croot) *0.17)
-	else
-    S_branch = max(0.,stand(28)+hW_branch+hWdb+hW_croot*0.83 + &
-		hW_stem * (1-harvRatio))
-    S_wood = max(0.,stand(29)  + hW_croot*0.17)
-	endif
-	
-	!!! if part of the thinned trees is not harvested (e.g.,residues from disturbances) litterfall is updated
-	if(pHarvTrees < 1.) then
-		S_branch = S_branch + remhW_branch + remhW_croot * 0.83 + remhWdb
-		S_wood = S_wood + remhW_croot*0.17 + remhW_stem
-	endif
-  !energyCut	
+!// END OUTCOMMENTED BIT
+
+
+
+!jh ASSORTMENTS: thinnings
+
+include 'assort_thin.h'
+energyWood(year,ij,15) = 1321 !marker for (approximate) line for troubleshooting; formerly 1219, 1127
+!/jh
+
+
+  !energyCut
 ! !! calculate litter including residuals from thinned trees
     ! S_fol = stand_all(26,ij) + stand_all(33,ij) - wf_STKG
     ! S_fr = stand_all(27,ij) + stand_all(25,ij) - W_froot
@@ -1287,29 +1402,29 @@ if (ClCut > 0.5) then
 	age = stand_all(7,layer)
 
  if ((D > D_clearcut) .or. (age > A_clearcut)) then
- 
+
   ! modOut(year+1,1,2,2) = 1. !flag for clearcut
   thinClx(year,2) = 1 !flag for clearcut
 	 !if fertilization at thinning is active reset flagFert
   if(fertThin > 0) then
-	flagFert = 0  
+	flagFert = 0
   endif
-  
+
   if(oldLayer==1) then !if oldLayer
   !!check dominant layer
    ! domSp = maxloc(STAND_all(13,1:(nLayers - 1)))
    ! layer = int(domSp(1))
-   
+
    !set siteType and alfar for old layer
   modOut(:,3,nLayers,1) = modOut(year,3,species,1)
   modOut(:,3,nLayers,2) = modOut(year,3,species,2)
   outt(3,nLayers,:) = modOut(year,3,species,1:2)
-    
+
   !!!!calculate percentage of trees remaining after clearcut(pDomRem)
   call random_number(randX)
    pDomRem =   max((randX*5.+5.)/100.* &  !!randomly sample between 5 and 10 %
 			sum(stand_all(13,1:ll))/stand_all(13,layer),0.05)
-   
+
 	!update old layer
    stand_all(:,nLayers) = stand_all(:,layer)
    stand_all(42,nLayers) = 0.
@@ -1333,24 +1448,38 @@ if (ClCut > 0.5) then
   !energyCut
     S_fol = stand_all(33,ij) + stand_all(26,ij)
 	S_fr = stand_all(25,ij) + stand_all(27,ij)
-	if(energyCut==1.) then
-	 energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) + &
-					stand_all(32,ij)*0.3 + stand_all(31,ij) * (1-harvRatio)) * energyRatio
-	species = int(max(1.,stand_all(4,ij)))
-if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
-	 S_branch = max(0.,(stand_all(28,ij) + (stand_all(24,ij)) * (1-energyRatio) + &
-		stand_all(51,ij) + (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.83 + &
-		stand_all(31,ij)* (1-harvRatio) * (1-energyRatio)))
-	 S_wood = (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
-	else
-	 S_branch = max(0.,(stand_all(51,ij)+stand_all(24,ij)+stand_all(28,ij)+stand_all(32,ij)* 0.83 +&
-			stand_all(31,ij)* (1-harvRatio)))
-	 S_wood = stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
-	endif
+
+!!!!!!!jhassort below: outcommented and moved to include 'assort...'
+
+! 	if(energyCut==1.) then
+! 	 energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) + &
+! 					stand_all(32,ij)*0.3 + stand_all(31,ij) * (1-harvRatio)) * energyRatio
+! 	species = int(max(1.,stand_all(4,ij)))
+! if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
+! 	 S_branch = max(0.,(stand_all(28,ij) + (stand_all(24,ij)) * (1-energyRatio) + &
+! 		stand_all(51,ij) + (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.83 + &
+! 		stand_all(31,ij)* (1-harvRatio) * (1-energyRatio)))
+! 	 S_wood = (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
+! 	else
+! 	 S_branch = max(0.,(stand_all(51,ij)+stand_all(24,ij)+stand_all(28,ij)+stand_all(32,ij)* 0.83 +&
+! 			stand_all(31,ij)* (1-harvRatio)))
+! 	 S_wood = stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
+! 	endif
+!/jh outcommented
+
+
+!jh ASSORTMENTS: CLEAR CUTS (oldLayer=T)
+
+include 'assort_cc.h'
+energyWood(year,ij,15) = 1474! formerly 1391. 1278
+
+
+
+
   !energyCut
     stand_all(2,ij) = 0. !!newX
     stand_all(7,ij) = 0.
-	stand_all(8,ij) = 0.	
+	stand_all(8,ij) = 0.
     stand_all(10:17,ij) = 0.
     stand_all(19:21,ij) = 0.
     stand_all(23:38,ij) = 0.
@@ -1373,38 +1502,53 @@ if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCroba
   !energyCut
     S_fol = stand_all(33,ij) + stand_all(26,ij)
     S_fr = stand_all(25,ij) + stand_all(27,ij)
-	if(energyCut==1.) then
-	 energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) + &
-					stand_all(32,ij)*0.3 + stand_all(31,ij) * (1-harvRatio)) * energyRatio
-species = int(max(1.,stand_all(4,ij)))
-if(pCrobas(2,species)>0.)	 energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
-	 S_branch = max(0.,(stand_all(28,ij) + (stand_all(24,ij)) * (1-energyRatio) + &
-		stand_all(51,ij) + (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.83 + &
-		stand_all(31,ij)* (1-harvRatio) * (1-energyRatio)))
-	 S_wood = (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.17+ stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
-	 	 
-	else
-	 S_branch = max(0.,(stand_all(51,ij)+stand_all(24,ij)+stand_all(28,ij)+stand_all(32,ij)* 0.83 +&
-			stand_all(31,ij)* (1-harvRatio)))
-	 S_wood = stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
-	endif
+
+        !jhassort below: outcommented and moved to include 'assort...'
+! 	if(energyCut==1.) then
+! 	 energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) + &
+! 					stand_all(32,ij)*0.3 + stand_all(31,ij) * (1-harvRatio)) * energyRatio
+! species = int(max(1.,stand_all(4,ij)))
+! if(pCrobas(2,species)>0.)	 energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
+! 	 S_branch = max(0.,(stand_all(28,ij) + (stand_all(24,ij)) * (1-energyRatio) + &
+! 		stand_all(51,ij) + (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.83 + &
+! 		stand_all(31,ij)* (1-harvRatio) * (1-energyRatio)))
+! 	 S_wood = (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.17+ stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
+!
+! 	else
+! 	 S_branch = max(0.,(stand_all(51,ij)+stand_all(24,ij)+stand_all(28,ij)+stand_all(32,ij)* 0.83 +&
+! 			stand_all(31,ij)* (1-harvRatio)))
+! 	 S_wood = stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
+! 	endif
+
+
+  !/jh end outcommened
+
+  !jh ASSORTMENTS: CLEAR CUTS (oldLayer=F)
+
+include 'assort_cc.h'
+energyWood(year,ij,15) = 1527! formerly 1431, 1299
+!/jh
+
+
+
   !energyCut
     stand_all(2,ij) = 0. !!newX
     stand_all(7,ij) = 0.
 	stand_all(8,ij) = 0.
     stand_all(10:17,ij) = 0.
     stand_all(19:21,ij) = 0.
-    stand_all(23:38,ij) = 0.
-    stand_all(41,ij) = 0.
+    !  stand_all(23:38,ij) = 0. !jh pass 37&38 (v&w harvested) through //deactivated (troubleshooting)
+       !NOTE: this means that ,37 is never reset, i.e. the harvests  are there for all consecutive years; now reset to 0 in beginning of layer Loop
+       stand_all(23:36,ij) = 0. !reactivate...    stand_all(41,ij) = 0.
     stand_all(43,ij) = 0.
     stand_all(47:nVar,ij) = 0.
     stand_all(26,ij) = S_fol
     stand_all(27,ij) = S_fr
     stand_all(28,ij) = S_branch
     stand_all(29,ij) = S_wood
-	
-	! if(siteInfo(1) == 454702.) write(2,*) "clCutHarv",ij, outt(7,ij,2), outt(11,ij,2), outt(30,ij,2) 
-    ! if(siteInfo(1) == 454702.) write(2,*) "clCutremains",ij, stand_all(7,ij), stand_all(11,ij), stand_all(30,ij) 
+
+	! if(siteInfo(1) == 454702.) write(2,*) "clCutHarv",ij, outt(7,ij,2), outt(11,ij,2), outt(30,ij,2)
+    ! if(siteInfo(1) == 454702.) write(2,*) "clCutremains",ij, stand_all(7,ij), stand_all(11,ij), stand_all(30,ij)
 
    enddo !!!implement clearcut by layer (end)
   endif !!!end if oldLayer
@@ -1433,14 +1577,14 @@ if(defaultThin == 1.) then
  Hdom = pCrobas(42,species)*exp(-1/max((H-1.3),0.001))+pCrobas(43,species)*H
  Ntot = sum(STAND_all(17,:))
 	!! here we decide what thinning function to use; 3 = tapioThin, 2 = tapioFirstThin, 1 = tapioTend
- call chooseThin(species, siteType, ETSmean, Ntot, Hdom, tTapio, ftTapio, thinningType) 
+ call chooseThin(species, siteType, ETSmean, Ntot, Hdom, tTapio, ftTapio, thinningType)
  ! thinx = thinningType
 
- if(thinningType == 3.) then   
-	call tapioThin(pCrobas(28,species),siteType,ETSmean,Hdom,tapioPars,BAtapio,thdPer,limPer)  
+ if(thinningType == 3.) then
+	call tapioThin(pCrobas(28,species),siteType,ETSmean,Hdom,tapioPars,BAtapio,thdPer,limPer)
 	BA_lim = BAtapio(1) ! BA limit to start thinning
 	BA_thd = BAtapio(2) ! BA after thinning
-	if(BA_tot > BA_lim) then 
+	if(BA_tot > BA_lim) then
 		doThin = .true.
 	else
 		doThin = .false.
@@ -1450,7 +1594,7 @@ if(defaultThin == 1.) then
 	Hdom_lim = tapioOut(1) ! Hdom limit to start thinning
 	dens_lim = tapioOut(2) ! density limit to start thinning; both need to be reached
 	dens_thd = tapioOut(3) ! density after thinning
-	if(Hdom > Hdom_lim .and. Ntot > dens_lim) then 
+	if(Hdom > Hdom_lim .and. Ntot > dens_lim) then
 		doThin = .true.
 	else
 		doThin = .false.
@@ -1460,24 +1604,24 @@ if(defaultThin == 1.) then
 	Hdom_lim = tapioOut(1)! Hdom limit to start thinning
 	dens_lim = tapioOut(2) ! density limit to start thinning; both need to be reached
 	dens_thd = tapioOut(3) ! density after thinning
-	if(Hdom > Hdom_lim .and. Ntot > dens_lim) then 
+	if(Hdom > Hdom_lim .and. Ntot > dens_lim) then
 		doThin = .true.
 	else
 		doThin = .false.
 	endif
  endif
- 
- 
+
+
  if(doThin) then
  !!!fertilization at thinning
-	if(fertThin == 3 .and. flagFert<1 .and. siteType>3. .and. siteType<6.) then 
+	if(fertThin == 3 .and. flagFert<1 .and. siteType>3. .and. siteType<6.) then
 		flagFert=1
 
 		yearsFert = max(1,min((nYears) - year,nYearsFert))
 		modOut((year+1):(year+yearsFert),3,:,1) = max(1.,siteType-1.)
 		! call calcAlfarFert(modOut(year,3,:,:),initVar(1,:),pCrobas, &
 				! nLayers,alfarFert,nSp,nYearsFert,npar)
-		call calcAlfarFert(modOut((year+1):(year+yearsFert),3,:,:),latitude, modOut(year,4,:,1),& 
+		call calcAlfarFert(modOut((year+1):(year+yearsFert),3,:,:),latitude, modOut(year,4,:,1),&
 		  pCrobas,nLayers,nSp,yearsFert,npar, siteInfo(3),deltaSiteTypeFert,pECMmod(6:8))
 	endif
 !!!end fertilization at thinning
@@ -1532,25 +1676,25 @@ if(defaultThin == 1.) then
     par_Cr2 = 0.!param(24)
     par_rhof = par_rhof1 * stand_all(5,ij) + par_rhof2
 	Nold = stand_all(17,ij)
-	
-	!!!!update kRein and cR	 
+
+	!!!!update kRein and cR
 	! calculate CNration
 	if(param(50)>-999.d0 .or. param(52)>-999.d0) call CNratio(CN, latitude, siteInfo(3),pECMmod(6:8))
-	!!!!update par_kRein as a function of CN if parameters (param(50>-999.))) are are provided 
-	if(param(50)>-999.d0) call linearUpdateParam(param(50:51),CN,par_kRein) 
-	!!!!update par_cR as a function of sitetype if parameters (param(52>-999.))) are are provided 
-	if(param(52)>-999.d0) call linearUpdateParam(param(52:53),CN,par_cR) 
-	
+	!!!!update par_kRein as a function of CN if parameters (param(50>-999.))) are are provided
+	if(param(50)>-999.d0) call linearUpdateParam(param(50:51),CN,par_kRein)
+	!!!!update par_cR as a function of sitetype if parameters (param(52>-999.))) are are provided
+	if(param(52)>-999.d0) call linearUpdateParam(param(52:53),CN,par_cR)
+
 	if(thinningType == 1. .or. thinningType == 2.) then
 		! N = number of trees in the current layer after thinning
 		N = (stand_all(17,ij)/Ntot) * dens_thd
 		H = stand_all(11,ij)
 		D = stand_all(12,ij)
 		BA = N*pi*(D/2./100.)**2.
-	else if(thinningType == 3.) then 
+	else if(thinningType == 3.) then
 		BA_tot = BA_thd
 		BA = BAr(ij) * BA_thd
-        if(thinInt > 0.) then 
+        if(thinInt > 0.) then
 			H = stand_all(11,ij) * 0.9
 			D = stand_all(12,ij) * 0.9
 		else
@@ -1564,12 +1708,12 @@ if(defaultThin == 1.) then
 		endif
 		N = BA/(pi*((D/2./100.)**2.))
 	endif
-	
-	! if(siteInfo(1)==719400.) then 
+
+	! if(siteInfo(1)==719400.) then
 		! write(1,*) H, D, stand_all(11,ij), BA, stand_all(12,ij), stand_all(13,ij)
 	! endif
 
-	stand_all(13,ij) = BA	
+	stand_all(13,ij) = BA
     Nthd = max(0.,(Nold - N))
     Hc = min(stand_all(14,ij),0.9*H)
 
@@ -1579,11 +1723,11 @@ if(defaultThin == 1.) then
     wf_STKG_old = stand_all(33,ij)
     W_stem_old = stand_all(31,ij)
     B = BA/N
-    A = stand_all(16,ij) * B/stand_all(35,ij) !!! to check 
+    A = stand_all(16,ij) * B/stand_all(35,ij) !!! to check
     hb = par_betab * Lc ** par_x
     Cw = 2. * hb
-	
-    
+
+
   !!update biomasses
 	age_factor = (1. - (1. - par_fAa)/ (1. + exp((par_fAb - h)/par_fAc)))/par_fAa
 	par_alfar = modOut(year,3,ij,2) * age_factor
@@ -1633,26 +1777,41 @@ if(defaultThin == 1.) then
   !energyCut
     S_fol = stand_all(26,ij) + stand_all(33,ij) - wf_STKG
 	S_fr = stand_all(27,ij) + stand_all(25,ij) - W_froot
-    if(energyCut==1.) then
-	 energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) - W_branch + &
-		(stand_all(32,ij) - W_croot) * 0.3 + &
-	    (stand_all(31,ij) - W_stem) * (1-harvRatio)) * energyRatio
-	species = int(max(1.,stand_all(4,ij)))
-if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
 
-     S_branch = max(0.,stand_all(28,ij) + (stand_all(24,ij) - W_branch) * (1-energyRatio) +&
-		stand_all(51,ij) - Wdb + &
-		(0.3 * (1-energyRatio)+0.7) * (stand_all(32,ij) - W_croot) *0.83 + &
-		(stand_all(31,ij)-W_stem)*(1-harvRatio)*(1-energyRatio))
-	 S_wood = max(0.,stand_all(29,ij)+(0.3 * (1-energyRatio)+0.7) * (stand_all(32,ij) - W_croot) *0.17)
-	else
-     S_branch = max(0.,stand_all(28,ij) + stand_all(24,ij) - W_branch + stand_all(51,ij) - Wdb + &
-		(stand_all(32,ij) - W_croot) * 0.83+ (stand_all(31,ij) - W_stem) * (1-harvRatio))
-     S_wood = max(0.,stand_all(29,ij)  + (stand_all(32,ij) - W_croot) * 0.17)
-	endif
-  !energyCut
-	
-	
+
+ !jhassort below: outcommented and moved to include 'assort...'
+
+!     if(energyCut==1.) then
+! 	 energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) - W_branch + &
+! 		(stand_all(32,ij) - W_croot) * 0.3 + &
+! 	    (stand_all(31,ij) - W_stem) * (1-harvRatio)) * energyRatio
+! 	species = int(max(1.,stand_all(4,ij)))
+! if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
+!
+!      S_branch = max(0.,stand_all(28,ij) + (stand_all(24,ij) - W_branch) * (1-energyRatio) +&
+! 		stand_all(51,ij) - Wdb + &
+! 		(0.3 * (1-energyRatio)+0.7) * (stand_all(32,ij) - W_croot) *0.83 + &
+! 		(stand_all(31,ij)-W_stem)*(1-harvRatio)*(1-energyRatio))
+! 	 S_wood = max(0.,stand_all(29,ij)+(0.3 * (1-energyRatio)+0.7) * (stand_all(32,ij) - W_croot) *0.17)
+! 	else
+!      S_branch = max(0.,stand_all(28,ij) + stand_all(24,ij) - W_branch + stand_all(51,ij) - Wdb + &
+! 		(stand_all(32,ij) - W_croot) * 0.83+ (stand_all(31,ij) - W_stem) * (1-harvRatio))
+!      S_wood = max(0.,stand_all(29,ij)  + (stand_all(32,ij) - W_croot) * 0.17)
+! 	endif
+!   !energyCut
+
+!/jh outcommented
+
+  !jhassort ASSORTMENTS: thinnings
+
+  include 'assort_thin.h'
+  energyWood(year,ij,15) = 1808 ! formerly 1570 1617
+  ! end assortments (thin)
+
+!! ATTENTION: below, all outt()+ aggregates are new/not existent in assortment implemented version
+!! meaning outt=out+stand... has been outt=stands
+!! CHECK THIS!!!
+
 	outt(11,ij,2) = STAND_tot(11)
 	outt(12,ij,2) = STAND_tot(12)
 	outt(13,ij,2) = outt(13,ij,2) + STAND_tot(13) - BA
@@ -1696,14 +1855,14 @@ if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCroba
 	stand_all(50,ij) = Wsh
 	stand_all(51,ij) = Wdb
 
-! if(siteInfo(1) == 454702.) write(2,*) "thinned", ij, stand_all(7,ij), outt(11,ij,2) , outt(13,ij,2) , outt(30,ij,2) 
-! if(siteInfo(1) == 454702.) write(2,*) "remaining", ij, stand_all(7,ij), stand_all(11,ij),stand_all(13,ij) ,stand_all(30,ij) 
- 
+! if(siteInfo(1) == 454702.) write(2,*) "thinned", ij, stand_all(7,ij), outt(11,ij,2) , outt(13,ij,2) , outt(30,ij,2)
+! if(siteInfo(1) == 454702.) write(2,*) "remaining", ij, stand_all(7,ij), stand_all(11,ij),stand_all(13,ij) ,stand_all(30,ij)
+
    endif
   enddo
  endif !default thin
 endif
- 
+
  !calculate reneike and random mortality
  include 'mortalityCalc.h'
 
@@ -1720,22 +1879,22 @@ modOut((year+1),7,:,:) = outt(7,:,:)
 modOut((year+1),9:nVar,:,:) = outt(9:nVar,:,:)
 
 !!!!calculate bark beetle disturbance
-  call TsumSBBfun(latitude,weatherPRELES(year,:,2),TsumSBBs(4)) 
+  call TsumSBBfun(latitude,weatherPRELES(year,:,2),TsumSBBs(4))
   if(TsumSBBs(1)<=-998.) then   !!!initialize the first three years this will be done only in the first year of the simulations if the inputs are not provvided
    TsumSBBs(1:3) = TsumSBBs(4)
   endif
   if(year > 1) then
    SMIt0 = modOut(year,46,1,2)
   else
-   if(SMIt0 < -998.d0) SMIt0 = SMI !!if year 1 SMIt0 is the same of first year  
+   if(SMIt0 < -998.d0) SMIt0 = SMI !!if year 1 SMIt0 is the same of first year
   endif
   call spruceVars(outt((/4,7,13/),:,1),nLayers,(/2,10/),2,spruceStandVars)
   call riskBB(pBB,TsumSBBs,spruceStandVars(1),spruceStandVars(3),spruceStandVars(2),(SMI+SMIt0)/2.)
   !update output
   modOut((year+1),45,:,2) = 0.
   modOut((year+1),45,1,2) = pBB(1)
-  TsumSBBs(1:3) = TsumSBBs(2:4)  
-  
+  TsumSBBs(1:3) = TsumSBBs(2:4)
+
   !calculate intensity
   if(spruceStandVars(3)>0.) then
    SHI = (spruceStandVars(1)/spruceStandVars(3))*(1.0-SMIt0)/0.2093014 !(spruceStandVars(1)/spruceStandVars(3)) = Baspruce fraction
@@ -1745,10 +1904,10 @@ modOut((year+1),9:nVar,:,:) = outt(9:nVar,:,:)
   intenSpruce = 1.d0/(1.d0+exp(3.9725-2.9673*SHI))
   if((spruceStandVars(1)/spruceStandVars(3)) < 0.05) intenSpruce = 0. ! If no spruce, damage intensity set zero
   modOut((year+1),48,1,2) = intenSpruce
-!!!end calculate bark beetle disturbance  
+!!!end calculate bark beetle disturbance
 
- if(oldLayer==1) then 
-	modOut((year+1),:,nLayers,:) = outt(:,nLayers,:) 
+ if(oldLayer==1) then
+	modOut((year+1),:,nLayers,:) = outt(:,nLayers,:)
  endif
 !!!!run Yasso
  if(yassoRun==1.) then
@@ -1759,15 +1918,15 @@ modOut((year+1),9:nVar,:,:) = outt(9:nVar,:,:)
 
    species = int(max(1.,modOut((year+1),4,ijj,1)))
    call compAWENH(Lf(ijj),folAWENH(ijj,:),pAWEN(1:4,species))   !!!awen partitioning foliage
-   if(GVrun==1 .and. ijj==1) then 
+   if(GVrun==1 .and. ijj==1) then
     folAWENH(ijj,1:4) = folAWENH(ijj,1:4) + AWENgv			 !!!add AWEN gv to 1st layer
    endif
-   
+
    !!!ECMmodelling.
    !add W for all layer to W folAWENH(ijj,2) = folAWENH(ijj,2) + exud(ijj) !!!ECMmodelling.  exud(ijj)=0 if ECMmod= 0
    folAWENH(ijj,2) = folAWENH(ijj,2) + exud(ijj) !!!ECMmodelling
    ! write(3,*) exud(ij)
-   
+
    call compAWENH(Lb(ijj),fbAWENH(ijj,:),pAWEN(5:8,species))   !!!awen partitioning branches
    call compAWENH(Lst(ijj),stAWENH(ijj,:),pAWEN(9:12,species))         !!!awen partitioning stems
 
@@ -1781,20 +1940,20 @@ modOut((year+1),9:nVar,:,:) = outt(9:nVar,:,:)
 
   soilCtot(year+1) = sum(soilC(year+1,:,:,:))
  endif !end yassoRun if
- 
+
 
 modOut(year+1,5,1,2) = ETSmean
 
 !!!fire disturbance calculations
- ! if(fireDistFlag) 
-  Cpool_litter_wood =  sum(soilC((year+1),1:4,1,:)) + sum(soilC((year+1),1:4,2,:)) 
+ ! if(fireDistFlag)
+  Cpool_litter_wood =  sum(soilC((year+1),1:4,1,:)) + sum(soilC((year+1),1:4,2,:))
   Cpool_litter_green = sum(soilC((year+1),1:4,3,:)) * sum(outt(26,:,1))/sum(outt(26,:,1)+outt(27,:,1))
   livegrass = 0.!GVout(year,4)
   soil_moisture(:) = ((dailySW/pPRELES(1))-pPRELES(3))/(pPRELES(2)-pPRELES(3)) !relative extractable soil water
   Tmin = weatherPRELES(year,:,2) - 3.6
   Tmax = weatherPRELES(year,:,2) + 3.7
-  FDI(:) = 0. 
-  call fireDist(Cpool_litter_wood,Cpool_litter_green,livegrass,soil_moisture, & 
+  FDI(:) = 0.
+  call fireDist(Cpool_litter_wood,Cpool_litter_green,livegrass,soil_moisture, &
 			weatherPRELES(year,:,2),NI((1+((year-1)*365)):(365*year)),weatherPRELES(year,:,4),FDI)
   modOut((year+1),47,:,2) = 0.
   modOut((year+1),47,1,2) = maxval(FDI)
@@ -1806,8 +1965,33 @@ enddo !end year loop
 !update ETSstart
 ETSstart = ETSmean
 !soil and harvested volume outputs
-modOut(:,37,:,1) = modOut(:,30,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil 
-modOut(:,38,:,1) = modOut(:,31,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil 
+modOut(:,37,:,1) = modOut(:,30,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil
+modOut(:,38,:,1) = modOut(:,31,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil
+
+!!!!!!!!!!!
+!! jhassort: below was in working assortment version, keep for reference for norway
+!jh replace ,37/38,,1 with taper-based roundwood
+!NOTE: ,38,,1 (Wharvested) used as control dummy for old 37 (Vharvested) for now, replace by biomass later
+! !soil and harvested volume outputs
+! modOut(:,37,:,1) = modOut(:,30,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil
+! modOut(:,38,:,1) = modOut(:,31,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil
+! modOut(:,37,:,1) = energyWood(:,:,4) + energyWood(:,:,5)!stemwood harvested as sawnwood + pulpwood (= roundwood removals, used to meet roundwood demand)
+! if (assortType==2) then !jh ?? why here? overrides all else (before)
+  !modOut(2:(nyears+1),37,:,1) = energyWood(:,:,4) + energyWood(:,:,5) !francesco!!
+!   modOut(:,37,:,1) = 42.
+!x
+! else
+!   modOut(:,37,:,1) = modOut(:,30,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil
+! endif
+!energyWood(nYears, nLayers, 20)
+!/jh  real (kind=8) :: modOut((nYears+1), nVar, nLayers, 2)
+!!!!!!!!!!! // end reference keeping jhassort
+
+
+
+
+
+
 
 do year = 1,(nYears+1)
   do ijj = 1, nLayers
@@ -1833,14 +2017,14 @@ enddo
 		modOut(2:(nYears+1),26,:,1)/10. + modOut(2:(nYears+1),27,:,1)/10. + &
 		modOut(2:(nYears+1),28,:,1)/10. + modOut(2:(nYears+1),29,:,1)/10.
 	if(GVrun==1) modOut(2:(nYears+1),45,1,1) = modOut(2:(nYears+1),45,1,1) + GVout(:,2)/10.  !/10 coverts units to g C m−2 y−1
-	
-modOut(:,46,:,1) = modOut(:,44,:,1) - modOut(:,9,:,1) - modOut(:,45,:,1) 
+
+modOut(:,46,:,1) = modOut(:,44,:,1) - modOut(:,9,:,1) - modOut(:,45,:,1)
 
 !!!!ground vegetation Add Npp ground vegetation to the NEE first layer
 !!!calculate state of GV at the last year
-if(GVrun==1) then 
+if(GVrun==1) then
  stand_all = modOut((nYears+1),:,:,1)
- do ij = 1, nLayers 
+ do ij = 1, nLayers
 	if(stand_all(4,ij)==0.) stand_all(4,ij)=1.
  enddo
  call Ffotos2(stand_all,nLayers,nSpec,pCrobas,&
@@ -1854,7 +2038,7 @@ call fAPARgv(fAPARtrees, ETSmean, siteInfo(3), lastGVout(1), lastGVout(2), &
   ! GVout(1:(nYears-1),4) = GVout(2:(nYears),4)
   ! GVout(nYears,4) = lastGVout(4)
  else  !!!when nYears ==1 in the region multi prebas
-  
+
   ! ! if(isnan(lastGVout(4))) then
 	   ! ! write(1,*) siteInfo(1), lastGVout
   ! ! close(1)
@@ -1863,7 +2047,7 @@ call fAPARgv(fAPARtrees, ETSmean, siteInfo(3), lastGVout(1), lastGVout(2), &
   ! GVout(nYears,4) = lastGVout(4)
   endif
   modOut(2:(nYears+1),46,1,1) = modOut(2:(nYears+1),46,1,1) + GVout(:,5)
- 
+
 endif
 !!!calculate deadWood using Gompetz function (Makinen et al. 2006)!!!!
  do year = 2,(nYears +1)
@@ -1878,7 +2062,7 @@ endif
                  pCrobas(37,species)*D + pCrobas(44,species)))
 	  if(perVmort > pCrobas(49,species)) then
        modOut((year+i),8,ij,1) = modOut((year+i),8,ij,1) + Vmort * perVmort
-      endif  
+      endif
 	 enddo
    endif
   enddo
