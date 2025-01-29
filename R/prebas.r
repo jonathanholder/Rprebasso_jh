@@ -313,8 +313,8 @@ prebas <- function(nYears,
   layerNam <- paste("layer",1:nLayers)
   output <- array(0, dim=c((nYears),nVar,nLayers,2),
                   dimnames = list(year=NULL,variable=varNam,layer=layerNam,status=c("stand","thinned")))
-  energyWood <- array(0, dim=c((nYears),nLayers,2),
-                      dimnames = list(year=NULL,layer=layerNam,variable=c("volume","biomass")))
+  energyWood <- array(0, dim=c((nYears),nLayers,17),
+                      dimnames = list(year=NULL,layer=layerNam,variable=c("v_harvested", "roundw_tot", "sawnwood", "pulpwood", "energywood_roundw", "energywood_tot", "energyw_stump", "stump_stem", "n_harvested", "d_harvested", "h_harvested", "qredfact", "stemwood_taper", "mgmt_type", "dummy1", "dummy2", "dummy3")))#jhassort
   fAPAR <- rep(0.7,nYears)
 
   ###compute ETS year

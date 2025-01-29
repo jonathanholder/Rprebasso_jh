@@ -1,4 +1,4 @@
-subroutine initBiomasses(pCrobas,initVar,siteType,biomasses,par_alfar0,nVar,nPar) 
+subroutine initBiomasses(pCrobas,initVar,siteType,biomasses,par_alfar0,nVar,nPar)
 	implicit none
 
     integer, intent(in) :: nVar,nPar
@@ -12,7 +12,7 @@ subroutine initBiomasses(pCrobas,initVar,siteType,biomasses,par_alfar0,nVar,nPar
 	real (kind=8) :: wf_STKG, W_froot, W_wsap, W_c, W_s, W_branch, W_croot, Wdb, W_stem, Wsh
 	real (kind=8) :: W_crs, W_crh
     real (kind=8) :: age_factor, par_fAa, par_fAb, par_fAc
- 	
+
   !initBiomasses = function(pCrobas,initVarX){
   ! initVarX<-as.matrix(initVarX) change vector to matrix when maxlayer=1
   ! siteType = siteInfo(3)
@@ -33,7 +33,7 @@ subroutine initBiomasses(pCrobas,initVar,siteType,biomasses,par_alfar0,nVar,nPar
   par_fAc = pCrobas(47)
   gammaC = 0. !#initVarX(8,)
   Tbd = 10 !#####to include in the parameters
-  
+
   !###set variables
   A = initVar(7)
   ba = initVar(5); d = initVar(4)
@@ -41,20 +41,20 @@ subroutine initBiomasses(pCrobas,initVar,siteType,biomasses,par_alfar0,nVar,nPar
   h = initVar(3); hc = initVar(6)
   B = ba/N
   Lc = h - hc
-  
+
   age_factor = (1. - (1. - par_fAa)/ (1. + exp((par_fAb - h)/par_fAc)))/par_fAa
   par_alfar = par_alfar0 * age_factor
   par_rhor = par_alfar * par_rhof
   beta0 = par_beta0 * age_factor
-  
+
   betab =  par_betab * Lc**(par_x-1)
-  beta1 = (beta0 + betab + par_betas) 
-  beta2 = 1. - betab - par_betas 		
+  beta1 = (beta0 + betab + par_betas)
+  beta2 = 1. - betab - par_betas
   betaC = (beta1 + gammaC * beta2) / par_betas
   wf_STKG = par_rhof * A * N
-  W_froot = par_rhor * A * N  
-  W_wsap = par_rhow * A * N * (beta1 * h + beta2 * hc) 
-  W_c = par_rhow * A * N * hc 
+  W_froot = par_rhor * A * N
+  W_wsap = par_rhow * A * N * (beta1 * h + beta2 * hc)
+  W_c = par_rhow * A * N * hc
   W_s = par_rhow * A * N * par_betas * Lc !sapwood stem within crown
   W_branch =  par_rhow * A * N * betab * Lc !branches biomass
   Wsh = max((A+B+sqrt(A*B)) * hc * par_rhow * N/2.9 - W_c,0.) !#initialize heart wood, only stem considered. W_bole (total biomass below crown)  - Wc
@@ -70,7 +70,7 @@ subroutine initBiomasses(pCrobas,initVar,siteType,biomasses,par_alfar0,nVar,nPar
   W_croot = W_crh + W_crs! max(0.,(par_rhow *Lc * beta0 * A * N + (W_c + Wsh) * beta0)) !#coarse root biomass
 
   V = W_stem / par_rhow
-  
+
   biomasses(33) = wf_STKG
   biomasses(25) = W_froot
   biomasses(47) = W_wsap
@@ -83,7 +83,7 @@ subroutine initBiomasses(pCrobas,initVar,siteType,biomasses,par_alfar0,nVar,nPar
   biomasses(31) = W_stem
   biomasses(30) = V
   biomasses(54) = W_crh
-	
+
 end subroutine
 
 SUBROUTINE Ffotos2(STAND_all,nClass,nSp,pCrobas,nVar,nPar,MeanLight,coeff,qcTOT)
@@ -111,11 +111,11 @@ implicit none
  real (kind=8) :: apu, b1,  qctot0, qctot1, wwx, dc, e1
 !****************************************************************************************
  real (kind=8) :: pi = acos(-1.)
- 
+
  MeanLight = 0.
  coeff = 0.
  qcTOT = 0.
- 
+
  do i = 1,nclass
 	 species = int(stand_all(4,i))
 	 if(species==0) then
@@ -123,7 +123,7 @@ implicit none
 		 hc(i) = 0.   ! Hc
 		 h(i) = ht(i) - hc(i)        ! Lc
 		 LAIe(i) = 0. ! leff
-		 k(i) = 0.               ! k 
+		 k(i) = 0.               ! k
 		 LAI(i) = 0. * par_sla / 10000.   ! WF_stand * sla
 		 ! par_betab(i) = PARAM(17)   ! betab
 		 rc(i) = 0./2.         ! rc crown radius
@@ -146,32 +146,32 @@ implicit none
 		 hc(i) = STAND_all(14,i)   ! Hc
 		 h(i) = ht(i) - hc(i)        ! Lc
 		 LAIe(i) = STAND_all(19,i) ! leff
-		 k(i) = PARAM(4)               ! k 
+		 k(i) = PARAM(4)               ! k
 		 LAI(i) = STAND_all(33,i) * par_sla / 10000.   ! WF_stand * sla
 		 ! par_betab(i) = PARAM(17)   ! betab
 		 rc(i) = STAND_all(15,i)/2.         ! rc crown radius
 		 N(i) = STAND_all(17,i) / 10000.   ! N per m2
 	 endif
  end do
-       
+
        nv= 2*nclass
 
 do  i = 1, nv
 		ii(i) = i
 end do
-    
+
 
 ! **  sort tree tops and crown bases in descending order into vector l
 
 do  i=1,nclass
 	l(i) = ht(i)
 	l(i+nclass) = hc(i)
-end do 
-        
+end do
+
 
 do  i=1,nv-1
 	do j=i+1,nv
-		    	if(l(i).lt.l(j)) then 
+		    	if(l(i).lt.l(j)) then
 			   		apu = l(i)
 			   		l(i) = l(j)
 			   		l(j) = apu
@@ -183,7 +183,7 @@ do  i=1,nv-1
 				endif
 	end do
 end do
-        
+
 ! ** end sort
 ! ** calculate effective leaf area for each species in canopy layers determined by heights and hc:s
 ! ** use function wwx to calculate foliage distribution, defined by species
@@ -191,7 +191,7 @@ end do
 lt(1) = 0.
 bt(1) = 0.
 do i=1,nv-1
-        
+
 	lt(i+1) = 0.
  	do j=1,nclass
 		species = j
@@ -200,7 +200,7 @@ do i=1,nv-1
 		if((ht(j)-hc(j)).gt.0.) then
 	                 x1 = (ht(j)-l(i))/(ht(j)-hc(j))
 	                 x2 = (ht(j)-l(i+1))/(ht(j)-hc(j))
-	                else 
+	                else
 	                 x1=0.
 	                 x2=0.
 	                endif
@@ -208,13 +208,13 @@ do i=1,nv-1
 			   		vrel(i+1,j) = apuI / apuJ
                 else
 			   		vrel(i+1,j) = 0.
-                endif     
+                endif
                 lpt(i+1,j) = k(j) * LAIe(j) * vrel(i+1,j)
                 lt(i+1) = lt(i+1) + lpt(i+1,j)
 	end do
 	 bt(i+1) = bt(i) + lt(i+1)
 end do
-    
+
 
 do j=1,nclass
      	dc = 0.
@@ -232,25 +232,25 @@ do j=1,nclass
 		e1 = exp(-bt(i1)) - exp(-bt(i2))
 	            b1 = bt(i2) - bt(i1)
 
- 		if (b1 .ne. 0)  qc(j) = k(j) * laie(j) * e1  / b1 
+ 		if (b1 .ne. 0)  qc(j) = k(j) * laie(j) * e1  / b1
 
 		 	btc(j) = bt(i2)
 
 !           MeanLight(j) = 0.5 * (exp(-bt(i1)) + exp(-bt(i2)))
             MeanLight(j) = exp(-bt(i2))
 end do
-        
+
 
 
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
 !  **  add a new more simple way of dividing between size classes
-!       
-!      Here the fAPAR for the whole stand is calculated 
-!      (stored in qc(in), same for all classes), and trees 
+!
+!      Here the fAPAR for the whole stand is calculated
+!      (stored in qc(in), same for all classes), and trees
 !      utilise this in proportion to their foliage mass
-! 
+!
 !      AM 2.7.2008
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -265,35 +265,35 @@ do  i =1,nclass
     Atot = Atot + N(i) * pi*(rc(i)**2 )
 	qcTOT1 = qcTOT1 + qc(i)
 end do
-    
+
 ! calculate LPJ style fAPAR and use the smaller of the two
-	
+
      if(Atot > 0. ) then
          qcTOT0 = (1. - exp(-kLAItot/ Atot)) * Atot
      else
          qctot = 0.
      endif
-     
+
      qcTOT = min(qcTOT0,qctot1)
 	 qcTOT = min(qcTOT,1.)
 	 qcTOT = max(qcTOT,0.)
 !    qctot = qctot1
-     
+
 !     if(stand_P(7) > 150) then
 !        continue
 !     endif
-     
-     
+
+
 ! calculate weights - on the basis of qcTOT1 but all downscaled if qcTOT0 < qcTOT1
-!	       
+!
 !do i = 1,nclass
-     
+
    if(qcTOT1.gt.0.) then
   	coeff  = qc / qcTOT1 * qcTOT / qcTOT1 ! weight
 
-!      	coeff_SP  = qc(2) / qcTOT1 * qcTOT / qcTOT1 ! 
+!      	coeff_SP  = qc(2) / qcTOT1 * qcTOT / qcTOT1 !
 
-!        coeff_B  = qc(3) / qcTOT1 * qcTOT / qcTOT1  ! 
+!        coeff_B  = qc(3) / qcTOT1 * qcTOT / qcTOT1  !
 
 
 
@@ -309,18 +309,18 @@ end do
 !    if(kLAIetot.gt.0.) then
 !       	 coeff_P  = k(1)*LAIe(1) / kLAIetot ! weight
 
-!        	coeff_SP  = k(2)*LAIe(2) / kLAIetot ! 
-           
-!             coeff_B  = k(3)*LAIe(3) / kLAIetot ! 
+!        	coeff_SP  = k(2)*LAIe(2) / kLAIetot !
+
+!             coeff_B  = k(3)*LAIe(3) / kLAIetot !
 
 
 !   else
 !       coeff_P = 1./3.
 !       coeff_SP = 1./3.
 !       coeff_B = 1./3.
-   
-! end do	
-    endif      
+
+! end do
+    endif
 
 
 
@@ -350,7 +350,7 @@ end do
     real(kind=8)  function wwx(x1,x2,Lc,species)
 
 	implicit none
-    
+
     real (kind=8), parameter :: hmax0 = 5., p = 1., q = 1.
 
 	real (kind=8) :: x1,x2,Lc
@@ -396,7 +396,7 @@ end do
 		w = w + (A+2.*B+2.*c+D)/6.
 		x = x+dx
       end do
-      
+
       wwx = w*dx
       end function wwx
 !*************************************************************
@@ -418,11 +418,11 @@ implicit none
 		tau,S0,Smax,kappa,gamma, soilthres, bCO2, xCO2, &
 		ETbeta, ETkappa, ETchi,ETsoilthres,ETnu, MeltCoef, &
 		I0,CWmax,SnowThreshold,T_0,SWinit,CWinit,SOGinit, &
-		Sinit,t0,tcrit,tsumcrit, &	
+		Sinit,t0,tcrit,tsumcrit, &
 		etmodel, LOGFLAG,NofDays, &
 		day, &!!!!this is DOY
 		transp, evap, fWE,CO2model) BIND(C)
-    USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT, C_CHAR, C_PTR, C_DOUBLE	
+    USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_INT, C_CHAR, C_PTR, C_DOUBLE
      real ( C_DOUBLE ) :: PAR(365), TAir(365), VPD(365), Precip(365), CO2(365), fAPARc(365)
      real ( c_double ) :: GPPmeas(365), ETmeas(365), SWmeas(365)
      real ( c_double ) :: GPP(365), ET(365), SW(365), SOG(365), fS(365), fD(365), fW(365), fE(365)
@@ -477,7 +477,7 @@ SWmeas(:) = 0.
 LOGFLAG=0
 
 !if(PAR(366)==-999) then
- nDays = 365 
+ nDays = 365
 !else
 ! nDays = 366
 !endif
@@ -526,7 +526,7 @@ fAPARc = fAPAR
 		tau,S0,Smax,kappa,gamma, soilthres, bCO2, xCO2, &
 		ETbeta, ETkappa, ETchi,ETsoilthres,ETnu, MeltCoef, &
 		I0,CWmax,SnowThreshold,T_0,SWinit,CWinit,SOGinit, &
-		Sinit,t0,tcrit,tsumcrit, & !end parameters	
+		Sinit,t0,tcrit,tsumcrit, & !end parameters
 		etmodel, LOGFLAG, NofDays, &
 		day, &!!!!this is DOY
 		transp, evap, fWE,CO2model)
@@ -581,8 +581,8 @@ IMPLICIT NONE
     REAL (kind=8),DIMENSION(5),INTENT(IN) :: init ! initial state
     REAL (kind=8),DIMENSION(5),INTENT(IN) :: b ! infall
     REAL (kind=8),DIMENSION(5),INTENT(OUT) :: xt ! the result i.e. x(t)
-    REAL (kind=8),INTENT(IN) :: steadystate_pred ! set to true if ignore 'time' and compute solution 
-    ! LOGICAL,OPTIONAL,INTENT(IN) :: steadystate_pred ! set to true if ignore 'time' and compute solution 
+    REAL (kind=8),INTENT(IN) :: steadystate_pred ! set to true if ignore 'time' and compute solution
+    ! LOGICAL,OPTIONAL,INTENT(IN) :: steadystate_pred ! set to true if ignore 'time' and compute solution
     ! in steady-state conditions (which sould give equal solution as if time is set large enough)
     REAL (kind=8),DIMENSION(5,5) :: A,At,mexpAt
     INTEGER :: i
@@ -597,7 +597,7 @@ IMPLICIT NONE
         ! ss_pred = steadystate_pred
     ! ENDIF
     IF(steadystate_pred == 1.) THEN
-        ss_pred = .true. 
+        ss_pred = .true.
 	else
 		ss_pred = .false.
     ENDIF
@@ -628,7 +628,7 @@ IMPLICIT NONE
     ! Size class dependence -- no effect if d == 0.0
     size_dep = MIN(1.0,(1.0+theta(33)*d+theta(34)*d**2.0)**(-ABS(theta(35))))
 
-    ! check rare case where no decomposition happens for some compartments 
+    ! check rare case where no decomposition happens for some compartments
     ! (basically, if no rain)
     IF (tem <= tol) THEN
         xt = init + b*time
@@ -640,7 +640,7 @@ IMPLICIT NONE
         A(i,i) = -ABS(theta(i))*tem*size_dep
     END DO
     A(4,4) = -ABS(theta(4))*temN*size_dep
-    
+
     A(1,2) = theta(5)*ABS(A(2,2))
     A(1,3) = theta(6)*ABS(A(3,3))
     A(1,4) = theta(7)*ABS(A(4,4))
@@ -808,7 +808,7 @@ IMPLICIT NONE
     END SUBROUTINE pivot
 
 
-	
+
     ! SUBROUTINE deadWoodV(y,nY,deadVol,dbh, pars)
         ! ! calculating deadwood volume decay
         ! IMPLICIT NONE
@@ -838,12 +838,12 @@ IMPLICIT NONE
 	AWENH(5) = 0.
     END SUBROUTINE compAWENH
 
-	
+
 SUBROUTINE runYasso(litter,litterSize,nYears, nLayers, nSites, nSp,&
 				species, nClimID,climIDs,pAWEN,pYasso, weatherYasso,soilC)
 IMPLICIT NONE
     !********************************************* &
-    ! GENERAL DESCRIPTION 
+    ! GENERAL DESCRIPTION
     !********************************************* &
     ! run yasso for some years with litterfal inputs from prebas.
 
@@ -857,7 +857,7 @@ IMPLICIT NONE
 	INTEGER :: year, site, layer, spec
 	real (kind=8) :: t=1.,Lst,Lb,Lf,leac=0.,stSt=0. !leaching parameter for Yasso
 	real (kind=8),DIMENSION(5) :: fbAWENH,folAWENH,stAWENH
-	
+
 
 fbAWENH = 0.
 folAWENH = 0.
@@ -883,23 +883,23 @@ do site = 1, nSites
 	leac,soilC(site,(year+1),:,2,layer),stSt)
    call mod5c(pYasso,t,weatherYasso(climIDs(site),year,:),soilC(site,year,:,3,layer),folAWENH,litterSize(3,spec), &
 	leac,soilC(site,(year+1),:,3,layer),stSt)
-	
+
   enddo
  enddo
 enddo
 
-END SUBROUTINE runYasso  
+END SUBROUTINE runYasso
 
 subroutine calWf(pars,Wf,inputs,nData,As)
  IMPLICIT NONE
  integer, intent(in) :: nData
- REAL (kind=8),INTENT(inOUT) :: Wf(nData,2),As(ndata,2) !!!Wf(:,1) Wf as function of As; 
+ REAL (kind=8),INTENT(inOUT) :: Wf(nData,2),As(ndata,2) !!!Wf(:,1) Wf as function of As;
 									!Wf(:,2) as function of Lc
- REAL (kind=8),INTENT(INout) :: pars(3),inputs(nData,3) !inputs col#1 = basal area; 
-								!col#2=height; col#3 = height of crown base 
+ REAL (kind=8),INTENT(INout) :: pars(3),inputs(nData,3) !inputs col#1 = basal area;
+								!col#2=height; col#3 = height of crown base
  REAL (kind=8) ba(ndata), h(ndata), hc(ndata), Lc(ndata) !!variables
  REAL (kind=8) par_rhof, par_ksi, par_z !!parameters
- 
+
 	ba = inputs(:,1)
 	h = inputs(:,2)
 	hc = inputs(:,3)
@@ -908,16 +908,16 @@ subroutine calWf(pars,Wf,inputs,nData,As)
 	par_z = pars(1)
 	par_rhof = pars(2)
 	par_ksi = pars(3)
-	As(:,2) = par_ksi/par_rhof * Lc ** par_z 
+	As(:,2) = par_ksi/par_rhof * Lc ** par_z
 	Wf(:,1) = par_rhof * As(:,1)
-	Wf(:,2) = par_ksi * Lc ** par_z 
+	Wf(:,2) = par_ksi * Lc ** par_z
 END SUBROUTINE calWf
 
 
 SUBROUTINE StstYasso(litter,litterSize, nLayers, nSites, nSp,species,nClimID,climIDs,pAWEN,pYasso,weatherYasso,soilC)
 IMPLICIT NONE
     !********************************************* &
-    ! GENERAL DESCRIPTION 
+    ! GENERAL DESCRIPTION
     !********************************************* &
     ! run yasso for some years with litterfal inputs from prebas.
 
@@ -941,7 +941,7 @@ soilC = 0.
 !!!!run Yasso
 do site = 1, nSites
  do layer = 1,nLayers
-	
+
    Lst = litter(site,layer,3)
    Lb = litter(site,layer,2)
    Lf = litter(site,layer,1)
@@ -1018,7 +1018,7 @@ subroutine tapioThin(forType,siteType,ETSmean,Hdom,tapioPars,baThin,BAthdPer, BA
 	implicit none
     real (kind=8),dimension(2) :: baThin
     real (kind=8) :: forType !1 for conifers; 2 for deciduous
-	real (kind=8) :: siteType,ETSmean, Hdom !siteType; average ETS of the site, average height of the stand before thinning 
+	real (kind=8) :: siteType,ETSmean, Hdom !siteType; average ETS of the site, average height of the stand before thinning
     real (kind=8) :: BA_lim, BA_thd, BA_limLow, BA_limUp, BA_thdLow, BA_thdUp
 	real (kind=8) :: HthinStart,HthinLim, ETSlim, tapioPars(5,2,3,20) !!dimensions are: 1st=SiteType; 2nd = ForType; 3rd= ETS; 4th=nTapioPars
 	real (kind=8) :: pX(3,20) !pX(1) = ETS threshold; pX(2)= Hlim;  pX(3:20) equation parameters
@@ -1092,11 +1092,11 @@ subroutine tapioThin(forType,siteType,ETSmean,Hdom,tapioPars,baThin,BAthdPer, BA
     BA_limLow = p1*Hdom**3. + p2*Hdom**2. + p3*Hdom + p4
     BA_limUp = p5*Hdom**3. + p6*Hdom**2. + p7*Hdom + p8
     BA_lim = BA_limLow + (BA_limUp - BA_limLow) * BAlimPer !(0:1)
-    
+
     BA_thdLow = p9*Hdom**3. + p10*Hdom**2. + p11*Hdom + p12
     BA_thdUp = p13*Hdom**3. + p14*Hdom**2. + p15*Hdom + p16
 	  BA_thd = BA_thdLow + (BA_thdUp - BA_thdLow) * BAthdPer !(0:1)
-	
+
   baThin(1) = BA_lim
   baThin(2) = BA_thd
  else
@@ -1112,14 +1112,14 @@ end subroutine tapioThin
 !*************************************************************
 subroutine tapioClearcut(species, siteType, ETSmean, dbh, age, ccTapio, ccPer, ccMature)
 	implicit none
-    LOGICAL :: ccMature 
+    LOGICAL :: ccMature
     real (kind=8) :: species !1 for pine; 2 for spruce; 3 for betula pendula
-	real (kind=8) :: siteType, ETSmean, dbh, age !siteType; average ETS of the site, average dbh of the stand 
+	real (kind=8) :: siteType, ETSmean, dbh, age !siteType; average ETS of the site, average dbh of the stand
 	real (kind=8) :: ccTapio(5,3,3,5) !!dimensions are: 1st=SiteType; 2nd = species; 3rd= ETS; 4th=nTapioCC
 	real (kind=8) :: pX(3,5) !pX(1) = ETS threshold; pX(2)= Hlim;  pX(3:5) equation parameters
     real (kind=8) :: dbhLim, dbhLimL, dbhLimU, ageLim
     real (kind=8) :: ccPer ! 0 = clearcut is done as soon as the first dbh limit is reached, 1 = clearcut is done at the upper dbh limit
-	
+
 pX = ccTapio(int(siteType), int(species),:,:)
  if(ETSmean > pX(1,1)) then !if we are in South Finland
 	dbhLimL = pX(1,3)
@@ -1134,8 +1134,8 @@ pX = ccTapio(int(siteType), int(species),:,:)
 	dbhLimU = pX(3,4)
 	ageLim =  pX(3,5)
  endif
- 
- dbhLim = dbhLimL + (dbhLimU - dbhLimL) * ccPer 
+
+ dbhLim = dbhLimL + (dbhLimU - dbhLimL) * ccPer
  if(dbh>dbhLim .or. age>ageLim) then ! if the limits are met, the stand is ready for clearcut
 	ccMature = .TRUE.
  else
@@ -1155,7 +1155,7 @@ end subroutine tapioClearcut
 
 subroutine tapioFirstThin(species, siteType, ETSmean, ftTapio, hPer, densPer, early, output)
 	implicit none
-    LOGICAL :: early ! if first thinning is done early; matters only for northern finland 
+    LOGICAL :: early ! if first thinning is done early; matters only for northern finland
 	real (kind=8),dimension(3) :: output ! outputs: 1 for height limit, 2 for density limit and 3 for result
     real (kind=8) :: species !1 for pine; 2 for spruce; 3 for betula pendula
 	real (kind=8) :: siteType, ETSmean !siteType; average ETS of the site
@@ -1166,7 +1166,7 @@ subroutine tapioFirstThin(species, siteType, ETSmean, ftTapio, hPer, densPer, ea
 ! densPer for adjusting the thinning result the same way
 
 !open(1, file="tapioFTlog.txt")
-	
+
 pX = ftTapio(int(siteType), int(species),:,:)
  if(ETSmean > pX(1,1)) then !if we are in South or Central Finland
 	densThd = pX(1,2)
@@ -1180,14 +1180,14 @@ pX = ftTapio(int(siteType), int(species),:,:)
 		hLimU = pX(2,4)
 		densityL = pX(2,5)
 		densityU = pX(2,6)
- else !parameters for late first thinning North Finland 
+ else !parameters for late first thinning North Finland
 		densThd = pX(3,2)
 		hLimL = pX(3,3)
 		hLimU = pX(3,4)
 		densityL = pX(3,5)
 		densityU = pX(3,6)
  endif
- 
+
 ! write(1, *) "densThd:", densThd, "densityU:", densityU
  hLim = hLimL + (hLimU - hLimL) * hPer
  densityMin = densityU*(1+densThd)
@@ -1195,7 +1195,7 @@ pX = ftTapio(int(siteType), int(species),:,:)
 !  write(1, *) "hLim:", hLim, "densMin:", densityMin, "densNew:", densityNew
 
  ! if height is over the limit and density high enough, thinning is made to the new density
- !if(Hdom>hLim .and. density>(densityU*(1+densThd))) then 
+ !if(Hdom>hLim .and. density>(densityU*(1+densThd))) then
 	output(1) = hLim
 	output(2) = densityMin
 	output(3) = densityNew
@@ -1223,7 +1223,7 @@ subroutine tapioTend(species, siteType, ETSmean, tTapio, hPer, densPer, output)
     real (kind=8) :: hLimL, hLimU, hLim, densityL, densityU, densityNew, densThd
     real (kind=8) :: hPer, densPer, densityMin ! hPer=0 first thinning is done as soon as the first height limit is reached, hPer=1 clearcut is done at the upper height limit
 ! densPer for adjusting the thinning result the same way
-	
+
 pX = tTapio(int(siteType), int(species),:,:)
  if(ETSmean > pX(1,1)) then !if we are in South or Central Finland
 	densThd = pX(1,2)
@@ -1238,19 +1238,19 @@ pX = tTapio(int(siteType), int(species),:,:)
 	densityL = pX(2,5)
 	densityU = pX(2,6)
  endif
- 
+
 ! open(1, file="tapioTendLog.txt")
- 
+
  hLim = hLimL + (hLimU - hLimL) * hPer
  densityMin = densityU*(1+densThd)
  densityNew = densityL + (densityU-densityL)*densPer
- 
+
 ! write(1, *) "hLim:", hLim, "densMin:", densityMin, "densNew:", densityNew
 
  ! if height is over the limit and density high enough, thinning is made to the new density
- !if(Hdom>hLim .and. density>(densityU*(1+densThd))) then 
+ !if(Hdom>hLim .and. density>(densityU*(1+densThd))) then
 !	density = densityNew
-	
+
 output(1) = hLim
 output(2) = densityMin
 output(3) = densityNew
@@ -1270,12 +1270,12 @@ subroutine chooseThin(species, siteType, ETSmean, density, Hdom, tTapio, ftTapio
     integer,intent(in) :: species !1 for pine; 2 for spruce; 3 for betula pendula
 	real (kind=8),intent(out) :: thinning ! 1 for tapioTend, 2 for tapioFirstThin, 3 for tapioThin
 	real (kind=8),intent(in) :: siteType, ETSmean, density, Hdom !siteType; average ETS of the site
-	real (kind=8),intent(in) :: tTapio(5,3,2,7), ftTapio(5,3,3,7) 
+	real (kind=8),intent(in) :: tTapio(5,3,2,7), ftTapio(5,3,3,7)
 	real (kind=8) :: pX1(3,7) !pX(1) = ETS threshold; pX(2)= densThd;  pX(3:4) height limits; pX(5:6) density after thinning; pX(7) height limit to move on to next thinning function
 	real (kind=8) :: pX2(2,7) !pX(1) = ETS threshold; pX(2)= densThd;  pX(3:4) height limits; pX(5:6) density after thinning; pX(7)	height limit to move on to next thinning function
     real (kind=8) :: densityU1, hNext1, densityU2, hNext2
 
-! log for testing 
+! log for testing
 !open(1, file = "chooseThinLog.txt")
 
 ! parameters for first thinning
@@ -1283,44 +1283,44 @@ pX1 = ftTapio(int(siteType), species,:,:)
  if(ETSmean > pX1(1,1)) then !if we are in South or Central Finland
 	densityU1 = pX1(1,6)
 	hNext1 = pX1(1,7)
- else 
+ else
 	densityU1 = pX1(2,6)
 	hNext1 = pX1(2,7)
  endif
- 
+
 ! parameters for tending
 pX2 = tTapio(int(siteType), species,:,:)
  if(ETSmean > pX2(1,1)) then !if we are in South or Central Finland
 	densityU2 = pX2(1,6)
 	hNext2 = pX2(1,7)
- else 
+ else
 	densityU2 = pX2(2,6)
 	hNext2 = pX2(2,7)
  endif
 
-! writing test log 
+! writing test log
 !write(1, *) "first thinning: density under", densityU1, "stems/ha or dheight over", hNext1, &
 !	"m; tending: density under", densityU2, "stems/ha or dheight over", hNext2, "m"
 
 ! if the stand is already thinner than the thinning result or the dominant height is over the limit, we move on to tapioThin subroutine
  if(density < densityU1 .or. Hdom > hNext1) then
-	thinning = 3. 
+	thinning = 3.
  else if(density < densityU2 .or. Hdom > hNext2) then
 	thinning = 2.
- else 
+ else
 	thinning = 1.
  endif
 
  ! closing test log
-!close(1) 
-	
+!close(1)
+
 end subroutine chooseThin
 
 
 !  function to calculate fAPAR of ground vegetation
 !***************************************************************
 ! subroutine fAPARgv(fAPARstand,ets,siteType,agW,bgW,fAPAR_gv,litAG,litBG)
-subroutine fAPARgv(fAPARstand,ets,siteType,totfAPAR_gv,totlitGV,p0,AWENs,totWGV) !reduced input output	
+subroutine fAPARgv(fAPARstand,ets,siteType,totfAPAR_gv,totlitGV,p0,AWENs,totWGV) !reduced input output
 	implicit none
     real (kind=8) :: fAPARstand,ets,siteType, litAG(3), litBG(2),p0
 	real (kind=8) :: totfAPAR_gv,totlitGV,totWGV
@@ -1328,8 +1328,8 @@ subroutine fAPARgv(fAPARstand,ets,siteType,totfAPAR_gv,totlitGV,p0,AWENs,totWGV)
     real (kind=8) :: b_g,a_g,a_s,a_m,b_m,alpha_ag(3),beta_ag(3),alpha_bg(2),beta_bg(2),laB(3)
 	real (kind=8) :: turnAG(3),turnBG(2),p0ref
 	real (kind=8) :: AWENs(4), AWENsh(4), AWENghAG(4), AWENml(4), AWENghBG(4)
- 
- 
+
+
  p0ref=1400.0
  !!!set parameters %cover
  if(siteType == 1.) then
@@ -1343,7 +1343,7 @@ subroutine fAPARgv(fAPARstand,ets,siteType,totfAPAR_gv,totlitGV,p0,AWENs,totWGV)
  elseif(siteType >4.5) then
   a_g = 0.05; a_s = 0.7; a_m = 0.6; b_m = 0.8; b_g = 0.
  endif
- 
+
  alpha_ag = (/3152.4,1390.1,1637.1/)
  beta_ag = (/1.107,0.9496,0.8289/)
  alpha_bg = (/5016.0,1278.3/)
@@ -1354,11 +1354,11 @@ subroutine fAPARgv(fAPARstand,ets,siteType,totfAPAR_gv,totlitGV,p0,AWENs,totWGV)
   alpha_bg(1) = 5587.7
   beta_bg(1) = 0.45
  endif
- 
+
  laB = (/6.,7.,1./)
  turnAG = (/0.37,0.54,0.2/) !!!turnovers above ground srbs,g&h, m&l
  turnBG = (/0.08,0.59/) !!!turnovers below ground srbs,g&h, m&l
- 
+
  AWENsh = (/0.557,0.225264,0.086736,0.131/) !!!!Awen parameters for shrubs
  AWENghAG = (/0.273,0.427518,0.274482,0.025/) !!!!Awen parameters for grass&herbs aboveground
  AWENghBG = (/0.273,0.506844,0.195156,0.025/) !!!!Awen parameters for grass&herbs belowground
@@ -1371,7 +1371,7 @@ subroutine fAPARgv(fAPARstand,ets,siteType,totfAPAR_gv,totlitGV,p0,AWENs,totWGV)
  xx(1) = a_s * (fAPARstand+0.2) * (log((1.04)/(fAPARstand+0.04))) **0.5 !!1.04 0.04 is to avoid division by 0 and to make the argument of log 1 at fAPAR=1
  xx(2) = a_g * (1-fAPARstand) + b_g
  xx(3) = a_m * (1-fAPARstand) + b_m * fAPARstand
- 
+
  !! calculate biomasses
  ! agW = P0/p0ref * alpha_ag * xx ** (beta_ag)*0.5
  ! bgW = P0/p0ref * alpha_bg * xx(1:2) ** (beta_bg)*0.5  !!!!0.5 converts DW to carbon
@@ -1384,17 +1384,17 @@ subroutine fAPARgv(fAPARstand,ets,siteType,totfAPAR_gv,totlitGV,p0,AWENs,totWGV)
  !! calculate AWEN
  AWENs =  litAG(1) * AWENsh + litAG(2)*AWENghAG + litAG(3) * AWENml + &
 	litBG(1)*AWENsh + litBG(2) *AWENghBG
- 
+
  ! !calculate LAI
- lai_gv = agW * laB / (10000 * 0.5)   !!!!0.5 converts SLA (m2/kg DW) to (m2/kg C) 
-  
+ lai_gv = agW * laB / (10000 * 0.5)   !!!!0.5 converts SLA (m2/kg DW) to (m2/kg C)
+
  fAPAR_gv(1) = (1-fAPARstand) * (1-exp(-0.5*(lai_gv(1))))
  fAPAR_gv(2) = (1-fAPARstand-fAPAR_gv(1)) * (1-exp(-0.5*(lai_gv(2))))
  fAPAR_gv(3) = (1-fAPARstand-fAPAR_gv(1)-fAPAR_gv(2)) * (1-exp(-0.5*(lai_gv(3))))
  totfAPAR_gv = sum(fAPAR_gv)   !!!alternatively 0.6354*fAPARstand + 0.3716
  totlitGV = sum(litAG) + sum(litBG)
  totWGV = sum(agW) + sum(bgW)
- 
+
 end subroutine fAPARgv
 
 
@@ -1403,12 +1403,12 @@ end subroutine fAPARgv
 SUBROUTINE runYassoAWENin(AWENin,nYears, nSites, litSize,nClimID,climIDs,pYasso,weatherYasso,soilC)
 IMPLICIT NONE
     !********************************************* &
-    ! GENERAL DESCRIPTION 
+    ! GENERAL DESCRIPTION
     !********************************************* &
     ! run yasso for some years with litterfal inputs from prebas.
 
 	integer, intent(in) :: nYears, nSites, nClimID
-	REAL (kind=8),INTENT(IN) :: AWENin(nSites, nYears, 5) 
+	REAL (kind=8),INTENT(IN) :: AWENin(nSites, nYears, 5)
 	REAL (kind=8),INTENT(IN) :: weatherYasso(nClimID, nYears, 3)
 	! REAL (kind=8),INTENT(IN) :: species(nSites, nLayers)
 	REAL (kind=8),INTENT(IN) :: pYasso(35),litSize
@@ -1417,7 +1417,7 @@ IMPLICIT NONE
 	INTEGER :: year, site, layer, spec
 	real (kind=8) :: t=1.,Lst,Lb,Lf,leac=0.,stSt=0. !leaching parameter for Yasso
 	real (kind=8),DIMENSION(5) :: AWENH
-	
+
 
 ! fbAWENH = 0.
 ! folAWENH = 0.
@@ -1443,32 +1443,32 @@ do site = 1, nSites
    call mod5c(pYasso,t,weatherYasso(climIDs(site),year,:),soilC(site,year,:),AWENH,litSize, &
 	leac,soilC(site,(year+1),:),stSt)
 
-  
+
  enddo
 enddo
 
-END SUBROUTINE runYassoAWENin  
+END SUBROUTINE runYassoAWENin
 
 
 
 
 ! subroutine multiGV(fAPARstand,ets,siteType,agW,bgW,fAPAR_gv,litAG,litBG)
-subroutine multiGV(fAPARstand,ets,siteType,totfAPAR_gv,totlitGV,p0,AWENs,nYears,nSites,totWGV) !reduced input output	
+subroutine multiGV(fAPARstand,ets,siteType,totfAPAR_gv,totlitGV,p0,AWENs,nYears,nSites,totWGV) !reduced input output
 	implicit none
 	integer,INTENT(IN) :: nYears,nSites
     real (kind=8) :: fAPARstand(nSites,nYears),ets(nSites,nYears),siteType(nSites),p0(nSites,nYears)
 	real (kind=8) :: totfAPAR_gv(nSites,nYears),totlitGV(nSites,nYears),totWGV(nSites,nYears)
 	real (kind=8) :: AWENs(nSites,nYears,4)
 	integer :: site,year
-	
+
  do site = 1, nSites
   do year = 1,nYears
 	call fAPARgv(fAPARstand(site,year),ets(site,year),siteType(site),totfAPAR_gv(site,year), &
 			totlitGV(site,year),p0(site,year),AWENs(site,year,:),totWGV(site,year))
   enddo !year
  enddo !site
- 
- 
+
+
 end subroutine multiGV
 
 
@@ -1476,12 +1476,12 @@ end subroutine multiGV
 SUBROUTINE runYassoAWENinMonthly(AWENin,nYears, nSites, litSize,nClimID,climIDs,pYasso,weatherYasso,soilC)
 IMPLICIT NONE
     !********************************************* &
-    ! GENERAL DESCRIPTION 
+    ! GENERAL DESCRIPTION
     !********************************************* &
     ! run yasso for some years with litterfal inputs from prebas.
 
 	integer, intent(in) :: nYears, nSites, nClimID
-	REAL (kind=8),INTENT(IN) :: AWENin(nSites, nYears, 5) 
+	REAL (kind=8),INTENT(IN) :: AWENin(nSites, nYears, 5)
 	REAL (kind=8),INTENT(IN) :: weatherYasso(nClimID, nYears, 3)
 	! REAL (kind=8),INTENT(IN) :: species(nSites, nLayers)
 	REAL (kind=8),INTENT(IN) :: pYasso(35),litSize
@@ -1490,7 +1490,7 @@ IMPLICIT NONE
 	INTEGER :: year, site, layer, spec
 	real (kind=8) :: t=1./12,Lst,Lb,Lf,leac=0.,stSt=0. !leaching parameter for Yasso
 	real (kind=8),DIMENSION(5) :: AWENH
-	
+
 
 ! fbAWENH = 0.
 ! folAWENH = 0.
@@ -1516,11 +1516,11 @@ do site = 1, nSites
    call mod5c(pYasso,t,weatherYasso(climIDs(site),year,:),soilC(site,year,:),AWENH,litSize, &
 	leac,soilC(site,(year+1),:),stSt)
 
-  
+
  enddo
 enddo
 
-END SUBROUTINE runYassoAWENinMonthly  
+END SUBROUTINE runYassoAWENinMonthly
 
 
 
@@ -1528,7 +1528,7 @@ SUBROUTINE runYassoMonthly(litter,litterSize,nMonths, nLayers, nSites, nSp,speci
 			weatherYasso,soilC)
 IMPLICIT NONE
     !********************************************* &
-    ! GENERAL DESCRIPTION 
+    ! GENERAL DESCRIPTION
     !********************************************* &
     ! run yasso for some years with litterfal inputs from prebas.
 
@@ -1542,7 +1542,7 @@ IMPLICIT NONE
 	INTEGER :: month, site, layer, spec
 	real (kind=8) :: t=1./12,Lst,Lb,Lf,leac=0.,stSt=0. !leaching parameter for Yasso
 	real (kind=8),DIMENSION(5) :: fbAWENH,folAWENH,stAWENH
-	
+
 
 fbAWENH = 0.
 folAWENH = 0.
@@ -1568,14 +1568,14 @@ do site = 1, nSites
 	leac,soilC(site,(month+1),:,2,layer),stSt)
    call mod5c(pYasso,t,weatherYasso(climIDs(site),month,:),soilC(site,month,:,3,layer),folAWENH,litterSize(3,spec), &
 	leac,soilC(site,(month+1),:,3,layer),stSt)
-	
+
 	! soilC(site,(month+1),:,:,layer) = soilC(site,month,:,:,layer) + (soilC(site,(month+1),:,:,layer) -soilC(site,month,:,:,layer))/12
 
   enddo
  enddo
 enddo
 
-END SUBROUTINE runYassoMonthly  
+END SUBROUTINE runYassoMonthly
 
 
 
@@ -1584,7 +1584,7 @@ END SUBROUTINE runYassoMonthly
 !
 !    This subroutine updates the number of trees in size !lasses
 !    according to alternative mortality assumptions
-!     
+!
 !
 !    Mortality has been removed from the FGrowth2 subroutine (December 2010 AM)
 !    W: biomass matrix, components Wf, Wfr, Wb, Wcr,Wsapw, Whw,
@@ -1594,17 +1594,17 @@ END SUBROUTINE runYassoMonthly
       SUBROUTINE FMortality(D13, BA, N, h, dN, dBA,rf, kokoluokka, ind)
 
 	implicit none
-		
+
 	! integer Maxhakkuu, maxkokoluokka, Maxvuodet, MaxOksat, VolWithbark
 	! Parameter (Maxhakkuu = 5, maxkokoluokka = 451, Maxvuodet = 451)
 	! Parameter (MaxOksat = 50, VolWithBark = 1)
 
 	integer,INTENT(inout) :: kokoluokka, ind
 	REAL (kind=8),INTENT(in) :: D13(kokoluokka), N(kokoluokka)
-	REAL (kind=8),INTENT(in) :: BA(kokoluokka), rf(kokoluokka) 
+	REAL (kind=8),INTENT(in) :: BA(kokoluokka), rf(kokoluokka)
 	REAL (kind=8),INTENT(out) :: dN(kokoluokka)
 	REAL (kind=8),INTENT(in) :: h(5,kokoluokka),dBA(kokoluokka)
-    
+
 !**********************************************************
     REAL (kind=8) :: delta1, delta2, Diam, dDiam, rNs, rN0
 	REAL (kind=8) :: phi, xij, dbhT, alpha, beta1, beta2
@@ -1612,7 +1612,7 @@ END SUBROUTINE runYassoMonthly
     REAL (kind=8) :: alpha_d, D13_d,k_mort1,k_mort2,greff,coeff
     REAL (kind=8) :: m_intr, m_greff, BAtot, Ntot, Reineke, cr, deltaN, dev
 	integer :: j
-! ********************************************************************************* 
+! *********************************************************************************
 ! these data commands relate to mortality in the model by Peltoniemi and Mäkipää
 ! choose first line for model 8 (no dbh effect) and second line for model 9
 ! third line is common for both. these are individual tree model, different layers
@@ -1624,38 +1624,38 @@ END SUBROUTINE runYassoMonthly
       data delta1,delta2/30000.,2000./
 
 
-      Diam = sqrt(1.2732 * BA(ind)) 
+      Diam = sqrt(1.2732 * BA(ind))
 
       if(Diam>0.) then
 	    dDiam = 0.6366 * dBA(ind) / Diam
       else
 	    dDiam = sqrt(1.2732 * dBA(ind))
       endif
-      
+
 ! !**********************************************************************
 ! !
 ! ! now apply Mikko's mortality model. result in mortality in each layer, we need to take account all the layers
 ! !
 ! !**********************************************************************
 
-	
+
 	CI = 0.
       Ntot = 0
 	dbhT = beta1 + beta2 * D13(ind) / 100.
-      
+
       do j = 1, kokoluokka
           Ntot = Ntot + N(j)
       enddo
-      
+
 
       do j = 1, kokoluokka
 
           if(N(j) > 0.) then
 
-	  if(j.ne.ind) then 
+	  if(j.ne.ind) then
 
 ! *** Mortality due to other size classes
-	  	  
+
 	    xij = (D13(j) - D13(ind)) / 100.
           if((alpha*(xij-dbhT)) < 10.) then
 	     phi = exp(alpha*(xij-dbhT))
@@ -1665,14 +1665,14 @@ END SUBROUTINE runYassoMonthly
 	    endif
 
 
-		CI = CI + N(j)*phi * sqrt(D13(j)/100.)  
+		CI = CI + N(j)*phi * sqrt(D13(j)/100.)
 
 	  else
 
 ! ***  account for the same size class assuming 5% deviation
 !      (has hardly any impact)
 
-          dev = 0.05 
+          dev = 0.05
 !          dev = N(ind) / Ntot
 
           xij = dev * D13(ind)/100.
@@ -1685,7 +1685,7 @@ END SUBROUTINE runYassoMonthly
 	    endif
 
 		CI = CI + dev * N(j)*phi * sqrt(D13(j)/100.)
-	    
+
 		if((alpha*(-xij-dbhT)) < 10.) then
 	     phi = exp(alpha*(-xij-dbhT))
 	     phi = phi / (1. + phi)
@@ -1695,10 +1695,10 @@ END SUBROUTINE runYassoMonthly
 
 		CI = CI + dev * N(j)*phi * sqrt(D13(j)/100.)
 
-	   
-	  endif	   
+
+	  endif
           endif
-          
+
       if(h(5,ind)>2.)then
 	  if ((1.+ delta1*dDiam + delta2*Diam*Diam)>0 &
        .and.(1.-1./(1.+ delta1*dDiam + delta2*Diam*Diam)>0)) then
@@ -1713,7 +1713,7 @@ END SUBROUTINE runYassoMonthly
 !	write(6,*) ind, CI, D13(ind), mprob
 
 	mprob = exp(mprob + sigmau/2.)
-      
+
       if(D13(ind)>0.) then
 
 	dN(ind) = - mprob * N(ind) - rNs*N(ind)
@@ -1721,10 +1721,10 @@ END SUBROUTINE runYassoMonthly
  	   dN(ind) = dN(ind) + rf(ind) * N(ind)
       endif
       else
-          
+
           dN(ind) = 0.
       endif
-      
+
 end subroutine Fmortality
 
 
@@ -1733,9 +1733,9 @@ end subroutine Fmortality
 subroutine calWf_fA(par_rhof,Wf,nData,As)
  IMPLICIT NONE
  integer, intent(in) :: nData
- REAL (kind=8),INTENT(inOUT) :: Wf(nData),As(ndata) 				
+ REAL (kind=8),INTENT(inOUT) :: Wf(nData),As(ndata)
  REAL (kind=8),INTENT(INout) :: par_rhof !!parameters
- 
+
  	Wf = par_rhof * As
 
 END SUBROUTINE calWf_fA
@@ -1743,28 +1743,28 @@ END SUBROUTINE calWf_fA
 subroutine calWf_fLc(pars,Wf,nData,Lc)
  IMPLICIT NONE
  integer, intent(in) :: nData
- REAL (kind=8),INTENT(inOUT) :: Wf(nData),Lc(ndata) 				
+ REAL (kind=8),INTENT(inOUT) :: Wf(nData),Lc(ndata)
  REAL (kind=8),INTENT(INout) :: pars(2) !!parameters
  REAL (kind=8) ksi, z
-    
+
 	ksi = pars(1)
 	z = pars(2)
- 	Wf = ksi * Lc ** z 
-	
+ 	Wf = ksi * Lc ** z
+
 END SUBROUTINE calWf_fLc
 
 subroutine calAs_fLc(pars,As,nData,Lc)
  IMPLICIT NONE
  integer, intent(in) :: nData
- REAL (kind=8),INTENT(inOUT) :: As(nData),Lc(ndata) 				
+ REAL (kind=8),INTENT(inOUT) :: As(nData),Lc(ndata)
  REAL (kind=8),INTENT(INout) :: pars(3) !!parameters
  REAL (kind=8) ksi, z, rhof
- 
+
 	ksi = pars(1)
 	z = pars(2)
 	rhof = pars(3)
- 	As = ksi/rhof * Lc ** z 
-	
+ 	As = ksi/rhof * Lc ** z
+
 END SUBROUTINE calAs_fLc
 
 
@@ -1781,7 +1781,7 @@ function MatVecMult(A, v) result (w)
 
    N = size(v)
 
-   w = 0.0       !! clear whole vector                      
+   w = 0.0       !! clear whole vector
    DO i = 1, N
       w = w + v(i) * A( :, i )
    END DO
@@ -1800,15 +1800,15 @@ subroutine calRein(outputs,nLayers,pRein,nVar,nSp,reinX)
  real (kind=8), intent(inout) ::reinX
  real (kind=8) :: valX(nLayers), domSp(1),  Ntot, B, Reineke(nLayers)
  integer :: i, ijx,layerX(nLayers)
- 
+
  ! nLayers = integer(size(outputs,3))
-  
+
  valX = outputs(11,:)
  do ijx = 1, nLayers
   domSp = maxloc(valX)
   layerX(ijx) = int(domSp(1))
   valX(layerX(ijx)) = -999.
-  
+
   Ntot = sum(outputs(17,layerX(1:ijx)))
   B = sum(outputs(35,layerX(1:ijx))*outputs(17,layerX(1:ijx)))/Ntot   !!!!!!!!!#####changed
 
@@ -1819,7 +1819,7 @@ subroutine calRein(outputs,nLayers,pRein,nVar,nSp,reinX)
      Reineke(layerX(ijx)) = 0.
    endif
  enddo
-	
+
  reinX = sum(Reineke)
 END subroutine calRein
 
@@ -1833,10 +1833,10 @@ END subroutine calRein
 	real(8),intent(inout) :: oldOrd(nSites),newOrd(nSites)
 	real(8), intent(inout) :: age(nSites)
 	integer i, nX, index1(nSites), index2(nSites),indexX,nY
-	
+
 	nX=0
 	nY=0
-	
+
 	do i = 1, nSites
 	indexX = int(oldOrd(i))
 	 if(age(indexX) <= ageX) then
@@ -1849,18 +1849,18 @@ END subroutine calRein
 	enddo
 	newOrd(1:nX) = index1(1:nX)
 	newOrd((nX+1):nSites) = index2(1:nY)
-	
-	!!!!old version 
+
+	!!!!old version
 		! indices1 = PACK([(i, i=1,nSites)], age<=ageX)
 		! ! if(ij==1) write(1,*) indices1
 		! nX = size(indices1)
 		! newOrd(1:nX) = oldOrd(indices1)
 		! indices2 = PACK([(i, i=1,nSites)], age>ageX)
 		! newOrd((nX+1):nSites) = oldOrd(indices2)
-	!!!!end old version 
-	end subroutine changeOrder 
-	
-	
+	!!!!end old version
+	end subroutine changeOrder
+
+
 subroutine testOption(a,b,c,valX1,valX2,valX3)
 	implicit none
 	real(8),intent(inout) :: a, b, c
@@ -1869,11 +1869,11 @@ subroutine testOption(a,b,c,valX1,valX2,valX3)
 	v1=1.
 	v2=2.
 	v3=3.
-	if(present(valX1)) then 
+	if(present(valX1)) then
 	 v1 = valX1
 	endif
 	c=a+b+v1+v2+v3
-end subroutine testOption 
+end subroutine testOption
 
 
 subroutine calcAlfarFert(siteTAlpha,latitude,species,pCrobas,nLayers,nSp,nYearsFert,npar,siteTypeOrig,deltaSiteTypeFert,parsCN)
@@ -1884,15 +1884,15 @@ subroutine calcAlfarFert(siteTAlpha,latitude,species,pCrobas,nLayers,nSp,nYearsF
 	! integer,intent(inout) :: year!,ind(3,2)
 	integer :: i,it
 	real(8):: alfarUnfert(nLayers), alfarFert(nLayers),slope,interc,SiteTypeFert,siteType(nYearsFert,nLayers),CN
-	
+
     ! ind(:,1) = int(max(20+min(modOut(1,year,3,:,1),5.)-1.,21.))
 	! ind(:,2) = int(modOut(1,year,4,:,1))
-	
+
 	do i = 1,nLayers
-	    if(pCrobas(23,int(max(species(i),1.))) == -999.) then	
-        
+	    if(pCrobas(23,int(max(species(i),1.))) == -999.) then
+
      		SiteTypeFert = max(1.,(siteTypeOrig - deltaSiteTypeFert))
-			
+
 			! 1. fill new sitetype: first 10 years siteType orginal +1 then remaining 10 years linearly goes down
 			siteTAlpha(1:(nYearsFert/2),i,1) = SiteTypeFert
 			slope = (siteTypeOrig - SiteTypeFert)/(nYearsFert/2.d0-0.d0)
@@ -1905,16 +1905,16 @@ subroutine calcAlfarFert(siteTAlpha,latitude,species,pCrobas,nLayers,nSp,nYearsF
 				call CNratio(CN, latitude, siteTAlpha(it,i,1),parsCN)
 			    siteTAlpha(it,i,2) = pCrobas(21,int(max(species(i),1.))) * exp(pCrobas(22,int(max(species(i),1.)))*CN)
 			enddo
-			
-		else 
-		
+
+		else
+
 			alfarUnfert(i) = pCrobas(int(max(20+min(siteTypeOrig,5.),21.)),int(max(species(i),1.)))
 			if(deltaSiteTypeFert<1.) then !!!this is not used in fertilization at thinning
 				alfarFert(i) = alfarUnfert(i) * deltaSiteTypeFert
 			else
 				alfarFert(i) = pCrobas(int(max(20+min(siteTypeOrig,5.)-deltaSiteTypeFert,21.)), &
 					int(max(species(i),1.)))
-			endif 
+			endif
 
 			siteTAlpha(1:(nYearsFert/2),i,2) = alfarFert(i)
 			slope = (alfarUnfert(i) - alfarFert(i))/(nYearsFert/2.d0-0.d0)
@@ -1926,10 +1926,10 @@ subroutine calcAlfarFert(siteTAlpha,latitude,species,pCrobas,nLayers,nSp,nYearsF
 	enddo
 	! write(1,*) slope,interc,siteTAlpha(1:(nYearsFert),1,1)
 	! alfar = pCrobas(max(int(20+min(modOut(year,3,:,1),5)),21),int(initVar(1,:)))
-end subroutine calcAlfarFert	
-	
+end subroutine calcAlfarFert
 
-!!!random mortality calculations based on Siilipehto et 2020	
+
+!!!random mortality calculations based on Siilipehto et 2020
 subroutine randMort(age,d,ba,N,rBApine,rBAbrd,slope,pSize,pMort,perBAmort,step,baDead)
 	implicit none
 	real(8),intent(inout) :: age,d,ba,N,rBApine,rBAbrd,slope,pSize,pMort,perBAmort,step,baDead
@@ -1937,14 +1937,14 @@ subroutine randMort(age,d,ba,N,rBApine,rBAbrd,slope,pSize,pMort,perBAmort,step,b
 	! real(8) :: m=0.0004d0, Interc=-0.01d0  !parameters of probability of mortality obtained fitting a linear model as function of tree density (Fig 3A siipilehto et al.2020)
 	! real(8) :: a=0.2643402d0, b= 0.9987199d0  !parameters of proportion of dead BA obtained fitting an exponential model as function of tree density (Fig 6C siipilehto et al.2020)
 	real(8) :: randX, nX, baX, XB1,rp1,rp=314.16d0, XB2,rp2
-	
+
 	!parameters mod1&2 siilipehto et al. 2020
 	real(8) :: int_m1, Age_m1, DQ_m1, sqrtBA_m1, BApineRelxAge_m1
 	real(8) :: BAbrdRelxAge_m1,Slope_100_m1, west_m1, TH5xBA_m1, peat_m1
 	real(8) :: int_m2, lnN_m2, ba_m2, sqrtN_m2, lnDQ_m2, BApineRelxlnAge_m2
 	real(8) :: BAbrdRelxlnAge_m2,Slope_100west_m2, Norway_m2
 
-!initParameters 
+!initParameters
     int_m1 = 3.1751d0
 	Age_m1 = -0.00417d0
 	DQ_m1 = 0.01382d0
@@ -1972,21 +1972,21 @@ subroutine randMort(age,d,ba,N,rBApine,rBAbrd,slope,pSize,pMort,perBAmort,step,b
 	XB2 = int_m2 + lnN_m2 * log(N) + sqrtN_m2 *sqrt(N) + ba_m2*ba + lnDQ_m2 *log(d) + &
 		BApineRelxlnAge_m2 * rBApine * log(age) + BAbrdRelxlnAge_m2 * rBAbrd * log(age) + &
 		Slope_100west_m2 *slope*0.25d0 + Norway_m2*0.d0
-	
+
 	pMort = 1.d0 - (1.d0 + exp(-(XB1)))**(-(rp1))!probability of survival
 	perBAmort = 1.d0 - (1.d0+exp(-XB2))**(-rp2)
 	! if(age<30) pMort = max(min(pMort*2,0.5),0.4)
 	! if(age<30) perBAmort = min(perBAmort*2,0.5)
-	
+
 	call random_number(randX)
 	 if (randX < pMort) then
 	  baDead = perBAmort * ba
 	endif
-	 
+
 end subroutine
-	
-	
-	!!!!calculate C:N based on ets and site type 
+
+
+	!!!!calculate C:N based on ets and site type
 !Note: parameters should be included as arguments inputs instead of being internally assigned
 subroutine CNratio(CN, latitude, st,pars)
 implicit none
@@ -1995,7 +1995,7 @@ implicit none
 	real(8),intent(out) :: CN
 	!parameters
 	real(8) :: int_CN, p_lat, p_st
-	
+
 	!init parameters
 	int_CN = pars(1)
 	p_lat = pars(2)
@@ -2003,7 +2003,7 @@ implicit none
 
  !calculate CN ratio
  CN = int_CN + p_lat * latitude + p_st * st
-endsubroutine	
+endsubroutine
 
 !!!!calculate ration of ECM biomass to fine root biomass (from Ostonen et al. 2011)
 !Note: parameters should be included as arguments inputs instead of being internally assigned
@@ -2014,12 +2014,12 @@ implicit none
 	real(8),intent(out) :: rho_M
 	!parameters
 	real(8) :: p1, p2, p3, p4
-	
+
 	!init parameters
 	p1 = pars(1)
-	p2 = pars(2)	
-	p3 = pars(3)	
-	p4 = pars(4)	
+	p2 = pars(2)
+	p3 = pars(3)
+	p4 = pars(4)
 
  !calculate rho_M
  rho_M = p1 + p2 / (1.d0 + exp(p3*(CN+p4)))
@@ -2036,14 +2036,14 @@ implicit none
 
 	real(8) :: r_F, s_F, rho_M,CN
 	!parameters
-	real(8) :: h_M, s_H, phi_M, ksi_M, gamma_M !, r_M	
+	real(8) :: h_M, s_H, phi_M, ksi_M, gamma_M !, r_M
 
 !initialise parameters
 h_M = pars(1) !extramatrical hyphal biomass parameter
 s_H = pars(2) * normFactETS !hyphae specific turnover rate
-phi_M = pars(3) !priming parameter 
+phi_M = pars(3) !priming parameter
 ksi_M = pars(4) * normFactETS !rate of exudation
-gamma_M = pars(5) * normFactETS !apparent hyphal respiration rate 
+gamma_M = pars(5) * normFactETS !apparent hyphal respiration rate
 
 !!!!!!!!!! I do not find the value of r_M
 ! r_M	= 0.d0  !Maintenance respiration rate of fungal tips
@@ -2064,9 +2064,9 @@ s_F=(h_M * s_H + ksi_M) !assuming ds_M = 0
 !Fine root maintenance respiration is replaced with the following:
 r_RT = (r_r+r_F * rho_M)/(1+rho_M)
 
-! When calculating the related loss of C to the atmosphere, we need to subtract the losses from this, i.e., use 
-!rm_aut_roots  losses of C from roots & ECM to 
-! atmosphere, i.e., actual autotrophic maintenance respiration of roots + ECM (here 
+! When calculating the related loss of C to the atmosphere, we need to subtract the losses from this, i.e., use
+!rm_aut_roots  losses of C from roots & ECM to
+! atmosphere, i.e., actual autotrophic maintenance respiration of roots + ECM (here
 ! respiration of ECM is regarded autotrophic because it comes from photosynthates
 rm_aut_roots = (r_r+(r_F-s_F) * rho_M)/(1 + rho_M)
 
@@ -2095,12 +2095,12 @@ subroutine calcAlfarCN(alfar0, latitude, st, parsCN,parsAlfar,nSp)
 		real(8),intent(in) :: latitude, st, parsCN(3),parsAlfar(2,nSp)
 		real(8),intent(out) :: alfar0(nSP)
 		real(8) :: CN
-		
+
 		!init parameters
 	call CNratio(CN, latitude, st,parsCN)
 	alfar0 = parsAlfar(1,:) * exp(parsAlfar(2,:)*CN)
 
-endsubroutine	
+endsubroutine
 
 
 ! calculate climate dependence on decomposition based on YASSO equations
@@ -2128,7 +2128,7 @@ IMPLICIT NONE
 
     REAL (kind=8),DIMENSION(35),INTENT(IN) :: theta ! parameters
     REAL (kind=8),DIMENSION(3),INTENT(IN) :: climate ! climatic conditions
-    REAL (kind=8),DIMENSION(4),INTENT(out) :: fTaweNH ! climate dependence on decomposition 
+    REAL (kind=8),DIMENSION(4),INTENT(out) :: fTaweNH ! climate dependence on decomposition
 
     INTEGER :: i
     REAL (kind=8),PARAMETER :: pi = 3.141592653589793
@@ -2189,28 +2189,28 @@ implicit none
 	real(8),intent(out) :: Nup, Ndem
 	!parameters
 	real(8) :: nf, nr, nw, ff, fr, fw, Umax, kN, CN
-	
+
 	!init parameters
 	! nf = nitpar(1)
-	! nr = nitpar(2)	
+	! nr = nitpar(2)
 	! nw = nitpar(3)
     ! ff = nitpar(4)
 	! fr = nitpar(5)
 	! fw = nitpar(6)
-	! Umax = nitpar(7)	
+	! Umax = nitpar(7)
 	! kN = nitpar(8)
-	! 
+	!
 
-call CNratio(CN, latitude, st,pars(6:8))	
+call CNratio(CN, latitude, st,pars(6:8))
 	nf = (nitpar(1) - nitpar(2) * CN) / nitpar(3)
-	nr = nitpar(4) * nf	
+	nr = nitpar(4) * nf
 	nw = nitpar(5) * nf
     ff = nitpar(6)
 	fr = nitpar(7)
 	fw = nitpar(8)
 	kN = nitpar(9)
     Umax = nitpar(10)
-	
+
  !calculate Ndem
  Ndem = nf * (1.0 - ff) * Gf + nr * (1.0 - fr) * Gr + nw * (1.0 - fw) * Gw
  if (Wrtot.gt.0.) then
@@ -2227,7 +2227,7 @@ endsubroutine
 !  function to calculate fAPAR of ground vegetation and report GVoutputs splitted by vegetation type (grass&herbs, srhubs, mosses&lichens)
 !***************************************************************
   ! subroutine fAPARgv(fAPARstand,ets,siteType,agW,bgW,fAPAR_gv,litAG,litBG)
-subroutine fAPARgvByVtypes(inputs, output) !reduced input output	
+subroutine fAPARgvByVtypes(inputs, output) !reduced input output
 implicit none
 real (kind=8) :: output(13) !fAPAR(3), Lit_ab(3),Lit_bg(2),W_ab(3),W_bg(2)
 real (kind=8) :: inputs(3) !fAPARstand,ets,siteType
@@ -2298,7 +2298,7 @@ AWENs =  litAG(1) * AWENsh + litAG(2)*AWENghAG + litAG(3) * AWENml + &
   litBG(1)*AWENsh + litBG(2) *AWENghBG
 
 ! !calculate LAI
-lai_gv = agW * laB / (10000 * 0.5)   !!!!0.5 converts SLA (m2/kg DW) to (m2/kg C) 
+lai_gv = agW * laB / (10000 * 0.5)   !!!!0.5 converts SLA (m2/kg DW) to (m2/kg C)
 
 fAPAR_gv(1) = (1-fAPARstand) * (1-exp(-0.5*(lai_gv(1))))
 fAPAR_gv(2) = (1-fAPARstand-fAPAR_gv(1)) * (1-exp(-0.5*(lai_gv(2))))
@@ -2313,7 +2313,7 @@ output(12:13) = bgW
 end subroutine fAPARgvByVtypes
 
 !update parameter value as linear function of some variable (for instance site type or CN ratio)
-subroutine linearUpdateParam(pars,varX,par_New) 
+subroutine linearUpdateParam(pars,varX,par_New)
 implicit none
 real (kind=8), intent(in) :: pars(2), varX
 real (kind=8), intent(inout) :: par_New
@@ -2329,24 +2329,24 @@ subroutine SMIfromPRELES(GPP,fW,SMI)
   real (kind=8), intent(out) :: SMI
   real(kind=8) :: gpp_threshold
   integer :: startSeason, endSeason
-  
+
   gpp_threshold=5.d0 !!!!gpp threshold that should be considered for start and end of the season
-  
+
   startSeason = 1
   do while (GPP(startSeason) <= gpp_threshold .and. startSeason < 366)
     startSeason = startSeason + 1
   enddo
-  
+
   endSeason = 365
   do while (GPP(endSeason) <= gpp_threshold .and. endSeason > 1)
     endSeason = endSeason - 1
   enddo
-  
+
   SMI = sum(fW(startSeason:endSeason))/(endSeason-startSeason+1)
-  
+
   ! write(1,*) startSeason, endSeason,SMI
-  
-  ! close(1) 
+
+  ! close(1)
 endsubroutine
 
 
@@ -2362,13 +2362,13 @@ subroutine calcAlfarFert_MultiSite(siteTAlpha,latitude,species,pCrobas,nLayers,n
 	integer :: i,it,maxYearSim
 	real(8) :: alfarUnfert(nLayers), alfarFert(nLayers),slope,interc,SiteTypeFert,siteType(nYearsFert,nLayers),CN
 	real(8) :: siteTAlphaX(nYearsFert,nLayers,2)
-	
-	
+
+
 	do i = 1,nSites
 		siteTAlphaX(:,:,:) = 1.
 		maxYearSim = min((nYears-yearFert(i)+1),nYearsFert)
 		siteTAlphaX(1:maxYearSim,:,:) = siteTAlpha(i,yearFert(i):(maxYearSim+yearFert(i)-1),:,:)
-		call calcAlfarFert(siteTAlphaX,latitude(i),species(i,:),pCrobas,nLayers, & 
+		call calcAlfarFert(siteTAlphaX,latitude(i),species(i,:),pCrobas,nLayers, &
 				nSp,nYearsFert,npar,siteTypeOrig(i),deltaSiteTypeFert(i),parsCN)
 
 		siteTAlpha(i,yearFert(i):(maxYearSim+yearFert(i)-1),:,:) = siteTAlphaX(1:maxYearSim,:,:)
@@ -2406,7 +2406,7 @@ subroutine minFaparCalc(fAPARtrees,nYears,minFapar,fAparFactor)
    integer :: lastYears = 5 !lastYears are the number of years before the current years that should not be considered in the minimum fAPAR calculations
    integer :: maxYears =15 !maxYears are the total number of years before the current years that should be considered in the minimum fAPAR calculations
    integer :: firstYear
-   
+
    if(nYears <= lastYears) minFapar = fAPARtrees(1)*fAparFactor
    if(nYears > lastYears .and. nYears <= int((maxYears - lastYears)/2)) minFapar = minval(fAPARtrees(1:(nYears-5)))*fAparFactor
    if(nYears > lastYears .and. nYears > int((maxYears - lastYears)/2)) then
@@ -2415,8 +2415,422 @@ subroutine minFaparCalc(fAPARtrees,nYears,minFapar,fAparFactor)
     minFapar = minval(fAPARtrees(firstYear:(nYears-5)))*fAparFactor
    else
     firstYear = nYears-maxYears+1
-    minFapar = minval(fAPARtrees(firstYear:(nYears-5)))  
+    minFapar = minval(fAPARtrees(firstYear:(nYears-5)))
    endif
    endif
-     
+
 endsubroutine
+
+!jh ADDITIONAL SUBROUTINES FOR HARVESTED ASSORTMENTS
+SUBROUTINE taper_assort(spec, d, h, vols_raw) !n
+  !calculates assortment(total stem volume, stump ratio, sawn ratio, pulp ratio, energy ratio (tops))
+  ! based on Laasasenaho (1980) taper functions
+    IMPLICIT NONE
+    ! INPUTS
+    REAL (kind=8), DIMENSION(3,4):: mindims !min dimension matrix (sawnd, pulpd, sawnl, pulpl; rows=spec 1:3)
+    REAL (kind=8), INTENT(IN) :: d,h
+    INTEGER, INTENT(IN):: spec ! 1 = pine, 2 = spruce, 3 = birch + broad
+    ! OUTPUT
+    REAL (kind=8), DIMENSION(5), INTENT(OUT) :: vols_raw ! output list of volumes: total stem volume, stump ratio, sawn ratio, pulp ratio, energy ratio (tops)
+    ! PROCESS VARS
+    REAL (kind=8), DIMENSION(4):: corrs !correction factors top pass to functions
+    REAL (kind=8) :: h1, corr1, corr2, corr3, z, pi, ref_d, integral, lower_l, upper_l, HatDlim, dlim, x, corrfunc, h_sawn, h_pulp
+    REAL (kind=8), DIMENSION (4,4) :: a ! for correction equation solution
+    REAL (kind=8), DIMENSION (4) :: b ! for correction equation solution
+    ! minimum dimensions: define here (might be externalised later)
+   mindims = reshape((/ 15., 16., 18., 6.3, 6.5, 6.5, 4.3, 4.3, 3.2, 2., 2., 2. /), shape(mindims))
+    pi = 3.14159265359
+    h1 = 1.3 !ref height for fdbh
+    corr1 = 99
+    corr2 = 99
+    corr3 = 99
+    ! correction factors
+    IF (spec==1) THEN
+      corr1 = 0.26222-0.0016245*d+0.010074*h+0.06273*(d/(h-h1))-0.011071*(d/(h-h1))**2-0.15496*LOG(h)-0.45333/h
+      corr2 = -0.38383-0.0055445*h-0.014121*LOG(d)+0.17496*LOG(h)+0.62221/h
+      corr3 = -0.179+0.037116*(d/(h-h1))-0.12667*LOG(d)+0.18974*LOG(h)
+    ELSE IF (spec==2) THEN
+      corr1 = -0.003133*d+0.01172*h+0.48952*(d/(h-h1))-0.078688*(d/(h-h1))**2-0.31296*log(d)+0.13242*log(h)-1.2967/h
+      corr2 = -0.0065534*d+0.011587*h-0.054213*(d/(h-h1))+0.011557*(d/(h-h1))**2+0.12598/h
+      corr3 = 0.084893-0.0064871*d+0.012711*h-0.10287*(d/(h-h1))+0.026841*(d/(h-h1))**2-0.01932*log(d)
+    ELSE IF (spec==3) THEN
+      corr1 = 0.59848+0.011356*d-0.49612*log(d)+0.46137*log(h)-0.92116/(d/(h-h1))+0.25182/(d/(h-h1))**2-0.00019947*d**2
+      corr2 = -0.96443+0.011401*d+0.1387*log(d)+1.5003/h+0.57278/(d/(h-h1))-0.18735/(d/(h-h1))**2-0.00026*d**2
+      corr3 = -2.1147+0.79368*log(d)-0.5181*log(h)+2.906/h+1.6811/(d/(h-h1))-0.40778/(d/(h-h1))**2-0.00011148*d**2
+    END IF
+    a = transpose(reshape((/ 1., 0., 0., 0., 1., 0.9, 0.9**2, 0.9**3, &
+        1., 0.6, 0.6**2, 0.6**3, 0., 0.3, 0.3**2, 0.3**3 /), shape(a)))
+    b = [ REAL (kind=8) :: 0., corr1, corr2, corr3 ]
+    CALL solve4x4(a,b,corrs) !adapted from annikki's subroutines in Prebas
+    z = (1-(h1/h))
+    ref_d = d/corrfunc(z, corrs, spec)
+!optimisation/finding h at d
+    x=0.
+    ! sawnwood section
+    dlim = mindims(spec,1)
+    CALL findHatD(spec, ref_d, corrs, dlim, HatDlim, h)
+    h_sawn = HatDlim
+    if ((1-h_sawn)*h<1.3) THEN !if min sawn D met below breast height: set to stump height
+      h_sawn = 0.99
+    end if
+    ! pulpwood section
+    dlim = mindims(spec,2)
+    CALL findHatD(spec, ref_d, corrs, dlim, HatDlim, h)
+    h_pulp = HatDlim
+    if ((0.99-h_pulp)*h<mindims(spec,4)) THEN ! if min pulp log length is not met (above stump height)
+      h_pulp = h_sawn ! note: if there is a sawn wood section, there is a pulp section with reasonable inputs.
+    end if
+    ! integrate subsections of stem
+    integral=99
+    ! stump vol
+    lower_l=0.99
+    upper_l=1
+    CALL integrate(lower_l,upper_l,corrs,integral, h, spec)
+    vols_raw(2) = (ref_d/100)**2*h*pi/4*integral!/vols_raw(1)
+    ! sawn vol
+    lower_l=h_sawn
+    upper_l=0.99
+    CALL integrate(lower_l,upper_l,corrs,integral, h, spec)
+    vols_raw(3) = (ref_d/100)**2*h*pi/4*integral!/vols_raw(1)
+    ! pulp vol
+    lower_l=h_pulp
+    upper_l=h_sawn
+    CALL integrate(lower_l,upper_l,corrs,integral, h, spec)
+    vols_raw(4) = (ref_d/100)**2*h*pi/4*integral!/vols_raw(1)
+    ! energy/tree top vol
+    lower_l=0
+    upper_l=h_pulp
+    CALL integrate(lower_l,upper_l,corrs,integral, h, spec)
+    vols_raw(5) = (ref_d/100)**2*h*pi/4*integral!/vols_raw(1)
+    ! fill output with proportions of total stem vol
+    vols_raw(1) = vols_raw(2) + vols_raw(3) + vols_raw(4) + vols_raw(5)
+    vols_raw(2) = vols_raw(2) / vols_raw(1)
+    vols_raw(3) = vols_raw(3) / vols_raw(1)
+    vols_raw(4) = vols_raw(4) / vols_raw(1)
+    vols_raw(5) = vols_raw(5) / vols_raw(1)
+END SUBROUTINE taper_assort
+SUBROUTINE integrate(l_low, l_up, corrs, integral, h, spec) !subroutine to integrate subsections of stem
+  IMPLICIT NONE
+    REAL (kind=8):: l_up, l_low, h
+    REAL (kind=8):: inter, p, rsum, intfunc, integral
+    REAL (kind=8), DIMENSION(4) :: corrs
+    INTEGER :: i, nx, spec
+    nx = nint(h/0.1)
+    inter = (l_up-l_low)/nx
+    p = (inter/2.)*(intfunc(l_low, corrs, spec)+intfunc(l_up, corrs, spec))
+    rsum=0
+    do i=1,nx-1
+      rsum=rsum+inter*intfunc(l_low+i*inter, corrs, spec)
+    enddo
+    integral = rsum + p
+END SUBROUTINE integrate
+SUBROUTINE findHatD(spec, ref_d, corrs, dlim, HatDlim, h) !calculate H at given diameter
+  IMPLICIT NONE
+    REAL (kind=8):: l_up, l_low, ref_d, HatDlim, h
+    REAL (kind=8):: inter, corrfunc, dlim, currentd, x
+    REAL (kind=8), DIMENSION(4) :: corrs
+    INTEGER :: i, nx, spec
+    ! looping through whole length at 10cm interval
+    l_up = 1
+    l_low = 0
+    nx=nint(h/0.1)
+    inter = (l_up-l_low)/nx
+    do i=1,nx ! start from 1 (=ground)
+      x = l_low+i*inter
+      currentd = ref_d*corrfunc(x, corrs, spec)
+      if (abs(currentd-dlim)<=0.2) THEN !threshold/tolerance with which the target diameter should be met
+        !//NOTE: e.g. 0.1 can be too low if the stem taper is very steep (high dbh, low h); then, there's no match and the output volume of pulp or sawn is 0
+        HatDlim = l_low+i*inter
+        exit
+      end if
+      if (i==nx) then
+        HatDlim = 0.99 ! if dlim is not reached in loop: set to stump heigth
+      end if
+    end do
+END SUBROUTINE findHatD
+REAL(kind=8) function intfunc(x, corrs, spec) result(integral) !species-specific integral function for stem partitioning
+  REAL (kind=8), DIMENSION(4) :: corrs
+  REAL (kind=8) :: x
+  INTEGER :: spec
+  integral = 99
+  IF (spec==1) then
+    integral = (2.1288*x-0.63157*x**2-1.6082*x**3+2.4886*x**5-2.4147*x**8+2.3619*x**13&
+    -1.7539*x**21+1.0817*x**34+corrs(2)*x+corrs(3)*x**2+corrs(4)*x**3)**2
+  ELSE IF (spec==2) then
+    integral = (2.3366*x-3.2684*x**2+3.6513*x**3-2.2208*x**5+0.0000*x**8+2.1501*x**13&
+     -2.7412*x**21+1.8876*x**34+corrs(2)*x+corrs(3)*x**2+corrs(4)*x**3)**2
+  ELSE IF (spec==3) then
+    integral = (0.93838*x+4.1060*x**2-7.8517*x**3+7.8993*x**5-7.5018*x**8+6.3863*x**13&
+    -4.3918*x**21+2.1604*x**34+corrs(2)*x+corrs(3)*x**2+corrs(4)*x**3)**2
+  END IF
+end function
+REAL(kind=8) function corrfunc(z, corrs, spec) result(corrfuncres) !internal to taper_assort
+  REAL (kind=8), DIMENSION(4) :: corrs
+  REAL (kind=8) :: z
+  INTEGER :: spec
+  corrfuncres = 99
+  IF (spec==1) then
+    corrfuncres = (2.1288*z-0.63157*z**2-1.6082*z**3+2.4886*z**5-2.4147*z**8+2.3619*z**13-1.7539*z**21+1.0817*z**34+ &
+                  corrs(2)*z+corrs(3)*z**2+corrs(4)*z**3)
+  ELSE IF (spec==2) then
+    corrfuncres = (2.3366*z-3.2684*z**2+3.6513*z**3-2.2208*z**5+0.0000*z**8+2.1501*z**13 -2.7412*z**21+1.8876*z**34+ &
+                  corrs(2)*z+corrs(3)*z**2+corrs(4)*z**3)
+  ELSE IF (spec==3) then
+    corrfuncres = (0.93838*z+4.1060*z**2-7.8517*z**3+7.8993*z**5-7.5018*z**8+6.3863*z**13-4.3918*z**21+2.1604*z**34+ &
+                  corrs(2)*z+corrs(3)*z**2+corrs(4)*z**3)
+  END IF
+end function
+SUBROUTINE solve4x4(A, b, x) !internal for taper_assort, adapted from annikki's code in prebas
+    ! Solve linear system A*x = b
+    IMPLICIT NONE
+!    REAL, DIMENSION(4) :: solve4x4
+    INTEGER,PARAMETER :: n = 4
+    REAL (kind=8),DIMENSION(n,n),INTENT(IN) :: A
+    REAL (kind=8),DIMENSION(n),INTENT(IN) :: b
+    REAL (kind=8),DIMENSION(n),INTENT(OUT) :: x
+    REAL (kind=8),DIMENSION(n,n) :: U
+    REAL (kind=8),DIMENSION(n) :: c
+    INTEGER :: i
+        ! transform the problem to upper diagonal form
+    CALL pgauss4x4(A, b, U, c)
+        ! solve U*x = c via back substitution
+    x(n) = c(n)/U(n,n)
+    DO i = n-1,1,-1
+        x(i) = (c(i) - DOT_PRODUCT(U(i,i+1:n),x(i+1:n)))/U(i,i)
+    END DO
+END SUBROUTINE solve4x4
+SUBROUTINE pgauss4x4(A, b, U, c) !internal for taper_assort, adapted from annikki's code in prebas
+    ! Transform the lin. system to upper diagonal form using gaussian elimination
+    ! with pivoting
+    IMPLICIT NONE
+    INTEGER,PARAMETER :: n = 4
+    REAL (kind=8),DIMENSION(n,n),INTENT(IN) :: A
+    REAL (kind=8),DIMENSION(n),INTENT(IN) :: b
+    REAL (kind=8),DIMENSION(n,n),INTENT(OUT) :: U
+    REAL (kind=8),DIMENSION(n),INTENT(OUT) :: c
+    INTEGER :: k, j
+    REAL,PARAMETER :: tol = 1E-12
+    U = A
+    c = b
+    DO k = 1,n-1
+        CALL pivot4x4(U,c,k) ! do pivoting (though may not be necessary in our case)
+        IF (ABS(U(k,k)) <= tol) THEN
+            write(*,*) 'Warning!!! Matrix is singular to working precision!'
+        END IF
+        U(k+1:n,k) = U(k+1:n,k)/U(k,k)
+        DO j = k+1,n
+            U(j,k+1:n) = U(j,k+1:n) - U(j,k)*U(k,k+1:n)
+        END DO
+        c(k+1:n) = c(k+1:n) - c(k)*U(k+1:n,k)
+    END DO
+END SUBROUTINE pgauss4x4
+SUBROUTINE pivot4x4(A, b, k)
+    ! perform pivoting to matrix A and vector b at row k
+    IMPLICIT NONE
+    INTEGER,PARAMETER :: n = 4
+    REAL (kind=8),DIMENSION(n,n),INTENT(INOUT) :: A
+    REAL (kind=8),DIMENSION(n),INTENT(INOUT) :: b
+    INTEGER,INTENT(IN) :: k
+    INTEGER :: q, pk
+    !write(*,*) 'Pivot elements are: ', A(k:n,k)
+    q = MAXLOC(ABS(A(k:n,k)),1)
+    !write(*,*) q
+    IF (q > 1) THEN
+        pk = k-1+q
+        A(k:pk:pk-k,:) = A(pk:k:k-pk,:)
+        b(k:pk:pk-k) = b(pk:k:k-pk)
+    END IF
+    !write(*,*) 'Pivot elements are: ', A(k:n,k)
+END SUBROUTINE pivot4x4
+! // TAPER ASSORTMENT MODEL
+! ASSORTMENTS BASED ON TAPER, QRED, ADDITIONAL COMPARTMENTS
+SUBROUTINE assort(spec, d, h, v, pharv, stem_assort, mkta, sitetype, peat, lat, lon, alt, ets, age)!; mkta, sitetype, peat, lat, lon, alt, ets, age , coef !qredfact and vols_raw just for checking
+  IMPLICIT NONE
+    ! INPUTS
+    !REAL (kind=8), DIMENSION(3,4), INTENT(IN):: mindims !min dimension matrix (sawnd, pulpd, sawnl, pulpl; rows=spec 1:3) // hardcoded in taper_assort
+        !I/O
+          ! INPUT
+        !REAL (kind=8), DIMENSION(30,5), INTENT(IN):: coef !methätalo coefficients
+        !REAL (kind=8), INTENT(IN) :: ets, h,v,d,n, lat, lon, alt, harvRatio!
+        !INTEGER, INTENT(IN):: spec, mkta, age, sitetype, peat ! 1 = pine, 2 = spruce, 3 = birch + broad
+        REAL (kind=8), INTENT(IN) :: d, h, v
+        INTEGER, INTENT(IN) :: spec
+        real (kind=8), dimension(4,3), INTENT(IN):: pHarv ! parameters for harvesting/assortments; 1=harvestRatio, 2=energyRatio, 3=stumpRatio, 4=qred_modifier
+          ! OUTPUT
+        REAL (kind=8), DIMENSION(8), INTENT(INOUT):: stem_assort! output list of volumes: total stem volume, stump ratio, sawn ratio, pulp ratio, energy ratio (tops)
+        REAL (kind=8), DIMENSION(5):: vols_raw ! output list of volumes: total stem volume, stump ratio, sawn ratio, pulp ratio, energy ratio (tops)
+        REAL (kind=8) :: qredfact, qred_modifier, harvRatio, dx, hx
+!#####
+        !REAL (kind=8), DIMENSION(30,5):: coef !methätalo coefficients
+        REAL (kind=8), INTENT(IN):: ets, lat, lon, alt, age
+        INTEGER, INTENT(IN):: mkta, peat, sitetype ! 1 = pine, 2 = spruce, 3 = birch + broad
+!SUBROUTINE qred_f(mkta, sitetype, peat, lat, lon, alt, spec, d, age, ets, coef, qredfact) !n
+  !qred input
+!#####
+        vols_raw = 0.
+        harvRatio = pharv(1, spec)
+! both taper_assort and qred_f produce NaN values at d, h at 0 or very low values; set h and d to 1 in these cases
+! this is in practice only active in potential assortments (assortType=3)
+        dx = max(d, 1.)
+        hx = max(h, 1.)
+        CALL taper_assort(spec, dx, hx, vols_raw) !n
+        CALL qred_f(mkta, sitetype, peat, lat, lon, alt, spec, dx, age, ets, qredfact)
+        !qredfact = 0.3
+        qred_modifier=pharv(4, spec)
+        !qred_modifier = 1.
+        ! to do:
+        ! stump harvesting: add stumpRatio variable (real 0:1)
+        ! --> maybe better to externalize (to keep non-stem variables out of this)
+        stem_assort(1) = (vols_raw(3) + vols_raw(4)) * v !roundwood (i.e. stem - stump - tops)
+        stem_assort(2) = vols_raw(2) * v ! stump
+        stem_assort(3) = vols_raw(3) * v * (1 - qredfact * qred_modifier) ! sawn
+        stem_assort(4) = ((vols_raw(4) + qredfact * qred_modifier * vols_raw(3)) * harvRatio) * v ! pulp
+        stem_assort(5) = (vols_raw(5) * v + ((vols_raw(4) + qred_modifier * qredfact * vols_raw(3)) * (1-harvRatio)) * v) !total energywood from stemwood // without stumps!!
+        stem_assort(6) = stem_assort(1) - stem_assort(3) - stem_assort(4)
+        stem_assort(7) = vols_raw(1) ! total stem volume: taper/prebas (for comparison)
+        stem_assort(8) = qredfact ! total stem volume: taper/prebas (for comparison)
+END SUBROUTINE assort
+!legacy
+! subroutine stumpsample(prob, stumpsampled)
+!   ! random sampling for probability prob (0:1), out 0/1
+!    IMPLICIT NONE
+!    REAL (kind=8), INTENT(IN):: prob
+!   ! REAL (kind=8):: rand
+!   !
+!    INTEGER, INTENT(INOUT):: stumpsampled
+!    stumpsampled = INT(5)
+!   ! stumpsampled = INT(prob*100)
+!   ! rand = 99.9
+!   ! CALL random_number(rand)
+!   ! if(rand<prob) THEN
+!   !   stumpsampled = 1
+!   ! else
+!   !   stumpsampled = 0
+!   ! end if
+! end subroutine stumpsample
+!
+!
+!legacy
+! SUBROUTINE stumpsample(prob, stumpsampled)
+!   ! random sampling for probability prob (0:1), out 0/1
+!   IMPLICIT NONE
+!         REAL (kind=8), INTENT(IN) :: prob
+!   !REAL (kind=8):: rand
+!         INTEGER, INTENT(INOUT) :: stumpsampled
+!         stumpsampled = INT(prob*100)
+!   ! rand = 99
+!   ! CALL random_number(rand)
+!   ! if(rand<prob) THEN
+!   !   stumpsampled = 1
+!   ! else
+!   !   stumpsampled = 0
+!   ! end if
+! END SUBROUTINE stumpsample
+SUBROUTINE stumpsample(prob, stumpsampled)
+  ! random sampling for probability prob (0:1), out 0/1
+  IMPLICIT NONE
+    REAL (kind=8), INTENT(IN):: prob
+    REAL (kind=8):: rand
+    INTEGER, INTENT(INOUT):: stumpsampled
+    CALL random_number(rand)
+    if(rand<prob) THEN
+      stumpsampled = 1
+    else
+      stumpsampled = 0
+    end if
+END SUBROUTINE stumpsample
+! QUALITY REDUCTION MODEL FOR SAWNWOOD SECTION
+! based on Mehtätalo (2002)
+SUBROUTINE qred_f(mkta, sitetype, peat, lat, lon, alt, spec, d, age, ets, qredfact) !n
+    IMPLICIT NONE
+    !I/O
+      ! INPUT
+    REAL (kind=8), DIMENSION(30,5) :: coef !methätalo coefficients
+    REAL (kind=8), INTENT(IN) :: ets, d, lat, lon, alt, age !
+    INTEGER, INTENT(IN):: spec, mkta, peat, sitetype ! 1 = pine, 2 = spruce, 3 = birch + broad
+      ! OUTPUT
+    REAL (kind=8), INTENT(OUT):: qredfact !methätalo coefficients
+      ! PROCESS VARS
+    INTEGER :: north
+    REAL (kind=8) :: evtobinI, evtobinR, age_bh, l
+    REAL (kind=8), DIMENSION(30):: c !methätalo species-/region-specific coefficients
+    ! coefficients hardcoded for now, pull out? don't see any benefits from that...
+    coef = reshape((/ -7.301, 0.03814, -3.568, 0., 0., 0., -0.2184, 0., 0., 0.00309, 0., 0., 0.004176, -0.7974, &
+    0., 0., 0., 0., -0.4549, 0., 0., 0., 0., 1.59, 0., 0.2832, 0.4607, 0.6323, 0., 0., -21.95, 0., 5.144, 0., 0., &
+     98.19, 0.1714, 0., 131.9, 0., 0., 0., 0., 0., -0.00128, 0., 0., 0., -0.2909, 0., 0., 0.02053, -2.939, 0., 0., &
+      0.5456, 0.6029, 0., 0., 0., 20.61, -0.004853, 0., 0., 5.56e-05, 0., 0.1893, -8.186, 0., 0., 1.493, 0.2884, 0., &
+       0., 0., 0., 0., 0., 0., -0.016, 0., 0., 0., 0.7182, 0., 0.1538, 3.638, 0., -0.002493, -0.003826, 6.841, 0.01229, &
+        0., 96.45, 0., 0., 0., 8.786, 298.1, 0., 0., 0., 0., 0., -0.01602, -3407., 0., -0.005684, 0., 0., 0., 0.01629, &
+         -5.066, 0., 0., 0.3361, 0., 0., 0., 0., -13.21, -0.02215, 0., 0., 0.000173, 0., 0.1046, 0., 73.49, 0., 0., 0., &
+          0.001167, 0., 0., 0., 0., 0.006862, 0., 0., -0.01092, 0., 0., 1.401, 0.613, 0., 0., 2.239, 0., 0. /), shape(coef))
+    ! calculate age at breast height (as required by mehtätalo)
+    age_bh =  max(1., REAL(age-nint(6 + 2*sitetype - 0.005*ets + 2.25), 4))
+    ! set north dummy according to mkta
+    north = 0
+    IF (mkta == 8 .OR. mkta == 16 .OR. mkta == 19) THEN !Lappi, Kainuu, Pohjois-Pohjanmaa
+      north = 1
+    END IF
+    ! select coefficients based on species and north 0/1
+    if (spec==1 .AND. north==0) THEN! pine in S
+      c(:) = coef(: , 1)
+    else if (spec==1 .AND. north==1) THEN! pine in N
+      c(:) = coef(: , 2)
+    else if (spec==2 .AND. north==0) THEN! spruce in S
+      c(:) = coef(: , 3)
+    else if (spec==2 .AND. north==1) THEN! spruce in N
+      c(:) = coef(: , 4)
+    else if (spec==3) THEN! birch
+      c(:) = coef(: , 5)
+    end if
+    ! MEHTÄTALO EQUATION
+    ! note: evtobin is == with real 0/1 output, i.e. if F then term = 0
+    l = c(1) + &
+      age_bh*c(2) + &
+      log(age_bh)*c(3) + &
+      1./age_bh*c(4) + &
+      age_bh**2*c(5) + &
+      1./sqrt(age_bh)*c(6) + &
+      d*c(7) + &
+      log(d)*c(8) + &
+      1./d*c(9) + &
+      d**2.*c(10) + &
+      d/age_bh*c(11) + &
+      c(12) +  & ! planted T/F, only for spruce in S (others: c=0...)
+      lat*c(13) +  &! check CRS
+      log(lat-6600.)*c(14) + &! check CRS
+      lon*c(15) + &
+      1/lon*c(16) + &
+      log(lon)*c(17)+ &
+      alt*c(18) + &
+      log(alt+1)*c(19) + &
+      min(alt, 60.)*c(20) + &
+      min(alt, 120.)*c(21) + &
+      max(0., alt-(11./80.*lat-741.25))*c(22) + &!# height above rime potential height (see mehtätalo eq 6, p. 585)
+      log(ets)*c(23) + &
+      evtobinI(mkta, 2)*c(24) + &!# Åland
+      evtobinI(north, 1)*c(25) + &! north = Kainu, Pohjois-Pohjanmaa, Lappi
+      evtobinI(peat, 1)*c(26) + &
+      evtobinI(sitetype,1)*c(27) + & !# metsikön metsätyyppi on lehtomainen kangas tai rehevämpi tai vastaava suo
+      evtobinI(sitetype,5)*c(28) +  &!# metsätyyppi on kuiva kangas tai karumpi tai vastaava suo
+      evtobinI(sitetype,1)*ets*c(29) + &
+      alt*evtobinI(sitetype,1)*c(30)
+      qredfact = exp(l)/(1+exp(l))
+END SUBROUTINE qred_f
+REAL(kind=8) function evtobinR(var, cond) result(tf01) ! ==, but with 0/1 output // REAL, not in use
+  REAL (kind=8) :: var, cond
+  IF (var==cond) then
+    tf01 = 1.
+  ELSE
+    tf01 = 0.
+  END IF
+end function
+REAL(kind=8) function evtobinI(var, cond) result(tf01) ! ==, but with 0/1 output // INTEGER
+  INTEGER :: var, cond
+  IF (var==cond) then
+    tf01 = 1.
+  ELSE
+    tf01 = 0.
+  END IF
+end function
+! // QUALITY REDUCTION MODEL
+!/jh // Assortment routines

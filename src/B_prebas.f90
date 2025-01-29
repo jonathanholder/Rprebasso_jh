@@ -17,7 +17,7 @@ implicit none
 !! Constants
  integer, parameter :: nVar=57, npar=64, inttimes = 1 ! no. of variables, parameters, simulation time-step (always 1)
  real (kind=8), parameter :: pi = 3.1415927, t=1. , ln2 = 0.693147181, fAparFactor=0.9
- real (kind=8), parameter :: energyRatio = 0.7, harvRatio = 0.9 !energyCut
+  !real (kind=8), parameter :: energyRatio = 0.7, harvRatio = 0.9 !energyCut !jhassort removed, replaced within assortment vasrrs
  integer, intent(in) :: nYears, nLayers, nSp ! no of year, layers, species (only to select param.)
  real (kind=8), intent(in) :: weatherPRELES(nYears,365,5) ! R, T, VPD, P, CO2
  integer, intent(in) :: DOY(365) !, etmodel, ECMmod !wdimpl
@@ -69,7 +69,7 @@ REAL (kind=8):: BAdist(nLayers) !disturbed BA per layer
  real (kind=8), intent(inout) :: dailyPRELES((nYears*365), 3) ! GPP, ET, SW
  real (kind=8), intent(inout) :: initVar(7, nLayers), P0y(nYears,2), ETSy(nYears), initCLcutRatio(nLayers), ETSstart ! initCLcutRatio sets the initial layer compositions after clearcut
  real (kind=8), intent(inout) :: siteInfo(10)
- real (kind=8), intent(inout) :: output(nYears, nVar, nLayers, 2), energyWood(nYears, nLayers, 2) ! last dimension: 1 is for stand and 2 is for harvested sum of wood.
+ real (kind=8), intent(inout) :: output(nYears, nVar, nLayers, 2), energyWood(nYears, nLayers, 17) ! last dimension: 1 is for stand and 2 is for harvested sum of wood.  jhassort: increase n of vars
  real (kind=8), intent(inout) :: soilCinOut(nYears, 5, 3, nLayers), soilCtotInOut(nYears) ! dimensions: nyears, AWENH, woody/fineWoody/foliage, layers
  real (kind=8), intent(inout) :: pYasso(35), weatherYasso(nYears,3), litterSize(3, nSp) ! litterSize dimensions: treeOrgans, species
 
@@ -157,6 +157,26 @@ integer, intent(in) :: prebasFlags(7)
  !BB disturbances
  real (kind=8) :: spruceStandVars(3),pBB(5), SMI, SMIt0,SHI,intenSpruce,rBAspruce(nLAyers) !SMIt0 = SMI previous year
 ! real (kind=8) :: rBAspruce(nLAyers), spruceStandVars(3),pBB(5), SMI, SMIt0, intenSpruce, SHI !SMIt0 = SMI previous year
+
+!jh harvested assortments subroutines
+      !general, taper 'bucking'
+  real (kind=8) :: energyRatio, harvRatio !energyCut
+  real (kind=8), dimension(8):: stem_assort! assort() output list of stemwood volumes: roundwood, stumps, sawn, pulp, energy (tops+too short sawn/pulp), energy from roundwood (! not considering the short sawn(<1.3m-stump)/pulp sections(<~2m))
+  real (kind=8), dimension(5):: vols_raw! assort() output list of volumes: roundwood, stump ratio, sawn ratio, pulp ratio, energy ratio (tops) (all of stemwood) // can be removed in final version
+  real (kind=8) :: h_harvested, d_harvested, v_harvested, n_harvested, qred_modifier, hc_rem, lc_rem, A_rem, stumpratio
+  real (kind=8) :: felled_branch, felled_croot, turnover_fw, turnover_cw
+  integer :: assortType ! 1 = original roundwood/energywood assortments; 2 = taper/qred assortments
+  real (kind=8) :: stumprecoveryrate ! share of stumps extracted (in the case of stump removal)
+  real (kind=8), dimension(4,3):: pharv ! parameters for harvesting/assortments; 1=harvestRatio, 2=energyRatio, 3=stumpRatio, 4=qred_modifier
+  integer :: stumpsampled !/ 0/1 stump removal (based on stumpratio probability)
+      !quality reduction model
+  REAL (kind=8), DIMENSION(30,5):: coef !methätalo coefficients
+  REAL (kind=8) :: lat, lon, alt !
+  INTEGER :: mkta, peat ! 1 = pine, 2 = spruce, 3 = birch + broad
+
+
+
+
 
 !!! 'un-vectorise' flags, fvec !wdimpl
 etmodel = int(prebasFlags(1))
@@ -542,6 +562,23 @@ do ij = 1 , nLayers     !loop Species
   STAND(20) = keff
   STAND(21) = lproj
   STAND(23) = weight
+
+  !jhassort the following has been removed in the update
+  ! – does this affect the assortment calculation?
+    ! STAND(11) = H
+    ! STAND(12) = D
+    ! STAND(13) = BA ! * par_ops2
+    ! STAND(14) = Hc
+    ! STAND(15) = Cw
+    ! STAND(17) = N
+    ! STAND(33) = wf_STKG
+    ! STAND(34) = wf_treeKG
+    ! STAND(35) = B
+    ! STAND(30) = V
+  !/jh
+
+
+
  else
   STAND(2) = 0. !#!#
   STAND(8:21) = 0. !#!#
@@ -566,7 +603,7 @@ if (year <= maxYearSite) then
 
 ! write(1,*) year, nLayers,nSpec,&
     ! nVar,nPar,MeanLight(1:2),coeff(1:2),fAPARtrees
-	
+
     call Ffotos2(STAND_all,nLayers,nSpec,pCrobas,&
     nVar,nPar,MeanLight,coeff,fAPARtrees)
    STAND_all(36,:) = MeanLight
@@ -607,7 +644,7 @@ endif
    endif
 
  if(isnan(fAPARgvX)) fAPARgvX = 0.
- 
+
  !!calculate minimum fAPAR of last 15 years to be used in ingrowth(if active) calculations
   call minFaparCalc(fAPAR,year,minFapar,fAparFactor)
 
@@ -670,6 +707,9 @@ s_fol = 0.
 S_fr = 0.
 S_branch = 0.
 S_wood = 0.
+
+STAND(37:38) = 0. !jhassort reset removals in 'remaining' dimension (Vharvested, Wharvested; 37:38)
+! these are exempted from resetting later on to pass through Vharvested (which is now filled earlier than before)
 
 !initialize ECMmodelling
 r_RT = 0.d0
@@ -1130,10 +1170,43 @@ else
 endif
 endif
 
+
+! ASSORTMENTS: SETTINGS
+!jhassort will be included as parameters/input making this obsolete
+! ! switch between generic/simple (1), complex/taper+qred assortments (2), and potential assortments for every year (3; invokes 2 as well, which in the case of harvests being conducted override the potentials)
+ assortType = INT(3)
+!
+!ratio of stumps extracted if they are collected (stumpsampled=T)
+stumprecoveryrate = 0.9
+! NOTE: != stumpratio (the share of segments where stump harvesting is conducted if prerequisites are met)
+! Parameters
+    pharv(1,:) = 0.9 !harvestRatio
+    pharv(2,:) = 0.7 !energyratio
+    pharv(3,1) = 0.5 !stumpRatio pine
+    pharv(3,2) = 1. !stumpRatio spruce
+    pharv(3,3) = 0. !stumpRatio birch
+    pharv(4,:) = 1.0 !qred_modifier
+!quality reduction
+!SUBROUTINE qred_f(mkta, sitetype, peat, lat, lon, alt, spec, d, age, ets, coef, qredfact) !n
+!NOTE: dummies for qred inputs, need to get those externally later on
+lat = 7000.
+lon = 400.
+alt = 100.
+peat = 0
+mkta = 5
+!/jh end assortment settings
+!jh POTENTIAL ASSORTMENTS (for every year)
+! in the case of harvests being conducted, these overwrite the potentials (assorttype=3))
+if (assortType==3) then
+ include 'assort_potential.h'
+endif !assorttype==3
+!/jh
+
+
   !Perform user defined thinning or defoliation events for this time period
   If (countThinning <= nThinning .and. time==inttimes) Then
    If (year == int(thinning(countThinning,1)) .and. ij == int(thinning(countThinning,3))) Then! .and. siteNo == thinning(countThinning,2)) Then
-  
+
 !set species from thinning matrix (strart)
     species = int(thinning(countThinning,2))
     stand(4) = thinning(countThinning,2)
@@ -1146,7 +1219,7 @@ endif
     thinning(countThinning,2) = stand(4)
    endif
 !set species from thinning matrix (end)
-   
+
    STAND_tot = STAND
 IF (thinning(countThinning,6) < STAND_tot(13)) siteInfoDist(2) = 0 !wdimpl, resetting thinning counter
 
@@ -1167,18 +1240,25 @@ IF (thinning(countThinning,6) < STAND_tot(13)) siteInfoDist(2) = 0 !wdimpl, rese
   !energyCut
    S_fol = wf_STKG + S_fol
      S_fr = W_froot + S_fr
-   if(energyCut==1.) then
-    energyWood(year,ij,2) = (W_branch + W_croot*0.3 + W_stem* (1-harvRatio)) * energyRatio
-    species = int(max(1.,stand(4)))
-if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
-      S_branch = max(0.,((W_branch) * (1-energyRatio) + S_branch + Wdb + &
-        W_stem* (1-harvRatio)* (1-energyRatio) + &
-        (0.3 * (1-energyRatio)+0.7) * W_croot *0.83))
-      S_wood = S_wood + (0.3 * (1-energyRatio)+0.7) * W_croot *0.17
-   else
-      S_branch = max(0.,(W_branch + Wdb + W_croot*0.83 + S_branch + W_stem* (1-harvRatio)))
-      S_wood = S_wood + W_croot*0.17!(1-harvRatio) takes into account of the stem residuals after thinnings
-   endif
+     !jh below: outcommented and moved to include 'assort...'
+ !  if(energyCut==1.) then
+ ! 	  energyWood(year,ij,2) = (W_branch + W_croot*0.3 + W_stem* (1-harvRatio)) * energyRatio
+ ! 	  species = int(max(1.,stand(4)))
+ ! if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
+ !       S_branch = max(0.,((W_branch) * (1-energyRatio) + S_branch + Wdb + &
+ ! 				W_stem* (1-harvRatio)* (1-energyRatio) + &
+ ! 				(0.3 * (1-energyRatio)+0.7) * W_croot *0.83))
+ !       S_wood = S_wood + (0.3 * (1-energyRatio)+0.7) * W_croot *0.17
+ ! 	 else
+ !       S_branch = max(0.,(W_branch + Wdb + W_croot*0.83 + S_branch + W_stem* (1-harvRatio)))
+ !       S_wood = S_wood + W_croot*0.17!(1-harvRatio) takes into account of the stem residuals after thinnings
+ ! 	 endif
+ !/jh end outcommented
+ !jh ASSORTMENTS: thinnings
+ ! ASSORTMENT CALCULATIONS
+ include 'assort_thin.h'
+ energyWood(year,ij,15) = 1260 !marker for (approximate) line for troubleshooting (formerly 1014, 1108)
+ !/jh END ASSORTMENTS: thinnings
   !energyCut
      STAND(26) = S_fol
      STAND(27) = S_fr
@@ -1271,40 +1351,57 @@ if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCroba
 
 !! calculate litter including residuals from thinned trees
   !energyCut
+
+
+
+!!!ATTENTION // jhassort
+!! manual thinnings with pharvtrees outcommented for now
+!! using the 'old' generic version for assortType=1 in assort_thin.h
+!! this doesn't include the possibility of setting pHarvTrees (option to only collect pHarvTrees share of killed trees to be able to include unmanaged disturbances)
+!! to be transferred later, requires some thinking (though most of it is there in the form of harvRatio)
+!! turn to this when the assortments work otherwise
+  ! pharvtrees required in later updating bits, probably double-accounting/allocating things...
     pHarvTrees = thinning(countThinning,11)
-  S_fol = max(0.,stand(26) + stand(33) - wf_STKG)
-  S_fr = max(0.,stand(27) + stand(25) - W_froot)
-
-  hW_branch = max(0.,(stand(24) - W_branch)* pHarvTrees)
-  hW_croot = max(0.,(stand(32) - W_croot)* pHarvTrees)
-  hW_stem = max(0.,(stand(31) - W_stem)* pHarvTrees)
-  hWdb = max(0.,(stand(51) - Wdb)* pHarvTrees)
-  remhW_branch = max(0.,(stand(24) - W_branch) * (1.-pHarvTrees))
-  remhW_croot = max(0.,(stand(32) - W_croot) * (1.-pHarvTrees))
-  remhW_stem = max(0.,(stand(31) - W_stem) * (1.-pHarvTrees))
-  remhWdb = max(0.,(stand(51) - Wdb) * (1.-pHarvTrees))
-
-  if(energyCut==1.) then
-  species = int(max(1.,stand(4)))
-
-   energyWood(year,ij,2) = max(0.,(hW_branch + hW_croot*0.3 + &
-          (hW_stem) * (1-harvRatio)) * energyRatio)
-if(pCrobas(2,species)>0.) energyWood(year,ij,1) = max(0.,energyWood(year,ij,2) / pCrobas(2,species))
-     S_branch = max(0.,stand(28) + hW_branch * (1-energyRatio) + hWdb +&
-        (0.3 * (1-energyRatio)+0.7) * hW_croot * 0.83 + &
-        hW_stem * (1-harvRatio) * (1-energyRatio))
-     S_wood = max(0.,stand(29) +(0.3 * (1-energyRatio)+0.7) * (stand(32) - W_croot) *0.17)
-  else
-    S_branch = max(0.,stand(28)+hW_branch+hWdb+hW_croot*0.83 + &
-    hW_stem * (1-harvRatio))
-    S_wood = max(0.,stand(29)  + hW_croot*0.17)
-  endif
-
-  !!! if part of the thinned trees is not harvested (e.g.,residues from disturbances) litterfall is updated
-  if(pHarvTrees < 1.) then
-    S_branch = S_branch + remhW_branch + remhW_croot * 0.83 + remhWdb
-    S_wood = S_wood + remhW_croot*0.17 + remhW_stem
-  endif
+    !// START OUTCOMMENTED BIT
+! 	S_fol = max(0.,stand(26) + stand(33) - wf_STKG)
+! 	S_fr = max(0.,stand(27) + stand(25) - W_froot)
+!
+! 	hW_branch = max(0.,(stand(24) - W_branch)* pHarvTrees)
+! 	hW_croot = max(0.,(stand(32) - W_croot)* pHarvTrees)
+! 	hW_stem = max(0.,(stand(31) - W_stem)* pHarvTrees)
+! 	hWdb = max(0.,(stand(51) - Wdb)* pHarvTrees)
+! 	remhW_branch = max(0.,(stand(24) - W_branch) * (1.-pHarvTrees))
+! 	remhW_croot = max(0.,(stand(32) - W_croot) * (1.-pHarvTrees))
+! 	remhW_stem = max(0.,(stand(31) - W_stem) * (1.-pHarvTrees))
+! 	remhWdb = max(0.,(stand(51) - Wdb) * (1.-pHarvTrees))
+!
+! 	if(energyCut==1.) then
+! 	species = int(max(1.,stand(4)))
+!
+! 	 energyWood(year,ij,2) = max(0.,(hW_branch + hW_croot*0.3 + &
+! 					(hW_stem) * (1-harvRatio)) * energyRatio)
+! if(pCrobas(2,species)>0.) energyWood(year,ij,1) = max(0.,energyWood(year,ij,2) / pCrobas(2,species))
+!      S_branch = max(0.,stand(28) + hW_branch * (1-energyRatio) + hWdb +&
+! 				(0.3 * (1-energyRatio)+0.7) * hW_croot * 0.83 + &
+! 				hW_stem * (1-harvRatio) * (1-energyRatio))
+!      S_wood = max(0.,stand(29) +(0.3 * (1-energyRatio)+0.7) * (stand(32) - W_croot) *0.17)
+! 	else
+!     S_branch = max(0.,stand(28)+hW_branch+hWdb+hW_croot*0.83 + &
+! 		hW_stem * (1-harvRatio))
+!     S_wood = max(0.,stand(29)  + hW_croot*0.17)
+! 	endif
+!
+! 	!!! if part of the thinned trees is not harvested (e.g.,residues from disturbances) litterfall is updated
+! 	if(pHarvTrees < 1.) then
+! 		S_branch = S_branch + remhW_branch + remhW_croot * 0.83 + remhWdb
+! 		S_wood = S_wood + remhW_croot*0.17 + remhW_stem
+! 	endif
+!// END OUTCOMMENTED BIT
+!jh ASSORTMENTS: thinnings
+include 'assort_thin.h'
+energyWood(year,ij,15) = 1402 !marker for (approximate) line for troubleshooting; formerly 1219, 1127
+!/jh
+  !energyCut
   !energyCut
 ! !! calculate litter including residuals from thinned trees
     ! S_fol = stand_all(26,ij) + stand_all(33,ij) - wf_STKG
@@ -1440,20 +1537,28 @@ if (ClCut > 0.5 .or. outdist(max(INT(year-1),1), 9) == 1.) then !outdist(,9): cc
   !energyCut
     S_fol = stand_all(33,ij) + stand_all(26,ij)
   S_fr = stand_all(25,ij) + stand_all(27,ij)
-  if(energyCut==1.) then
-   energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) + &
-          stand_all(32,ij)*0.3 + stand_all(31,ij) * (1-harvRatio)) * energyRatio
-  species = int(max(1.,stand_all(4,ij)))
-if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
-   S_branch = max(0.,(stand_all(28,ij) + (stand_all(24,ij)) * (1-energyRatio) + &
-    stand_all(51,ij) + (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.83 + &
-    stand_all(31,ij)* (1-harvRatio) * (1-energyRatio)))
-   S_wood = (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
-  else
-   S_branch = max(0.,(stand_all(51,ij)+stand_all(24,ij)+stand_all(28,ij)+stand_all(32,ij)* 0.83 +&
-      stand_all(31,ij)* (1-harvRatio)))
-   S_wood = stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
-  endif
+
+
+  !!!!!!!jhassort below: outcommented and moved to include 'assort...'
+  ! 	if(energyCut==1.) then
+  ! 	 energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) + &
+  ! 					stand_all(32,ij)*0.3 + stand_all(31,ij) * (1-harvRatio)) * energyRatio
+  ! 	species = int(max(1.,stand_all(4,ij)))
+  ! if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
+  ! 	 S_branch = max(0.,(stand_all(28,ij) + (stand_all(24,ij)) * (1-energyRatio) + &
+  ! 		stand_all(51,ij) + (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.83 + &
+  ! 		stand_all(31,ij)* (1-harvRatio) * (1-energyRatio)))
+  ! 	 S_wood = (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
+  ! 	else
+  ! 	 S_branch = max(0.,(stand_all(51,ij)+stand_all(24,ij)+stand_all(28,ij)+stand_all(32,ij)* 0.83 +&
+  ! 			stand_all(31,ij)* (1-harvRatio)))
+  ! 	 S_wood = stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
+  ! 	endif
+  !/jh outcommented
+  !jh ASSORTMENTS: CLEAR CUTS (oldLayer=T)
+  include 'assort_cc.h'
+  energyWood(year,ij,15) = 1560! formerly 1391. 1278
+
   !energyCut
     stand_all(2,ij) = 0. !!newX
     stand_all(7,ij) = 0.
@@ -1481,28 +1586,37 @@ if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCroba
   !energyCut
     S_fol = stand_all(33,ij) + stand_all(26,ij)
     S_fr = stand_all(25,ij) + stand_all(27,ij)
-  if(energyCut==1.) then
-   energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) + &
-          stand_all(32,ij)*0.3 + stand_all(31,ij) * (1-harvRatio)) * energyRatio
-species = int(max(1.,stand_all(4,ij)))
-if(pCrobas(2,species)>0.)   energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
-   S_branch = max(0.,(stand_all(28,ij) + (stand_all(24,ij)) * (1-energyRatio) + &
-    stand_all(51,ij) + (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.83 + &
-    stand_all(31,ij)* (1-harvRatio) * (1-energyRatio)))
-   S_wood = (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.17+ stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
+    !jhassort below: outcommented and moved to include 'assort...'
+  ! 	if(energyCut==1.) then
+  ! 	 energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) + &
+  ! 					stand_all(32,ij)*0.3 + stand_all(31,ij) * (1-harvRatio)) * energyRatio
+  ! species = int(max(1.,stand_all(4,ij)))
+  ! if(pCrobas(2,species)>0.)	 energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
+  ! 	 S_branch = max(0.,(stand_all(28,ij) + (stand_all(24,ij)) * (1-energyRatio) + &
+  ! 		stand_all(51,ij) + (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.83 + &
+  ! 		stand_all(31,ij)* (1-harvRatio) * (1-energyRatio)))
+  ! 	 S_wood = (0.3 * (1-energyRatio)+0.7) * stand_all(32,ij) *0.17+ stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
+  !
+  ! 	else
+  ! 	 S_branch = max(0.,(stand_all(51,ij)+stand_all(24,ij)+stand_all(28,ij)+stand_all(32,ij)* 0.83 +&
+  ! 			stand_all(31,ij)* (1-harvRatio)))
+  ! 	 S_wood = stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
+  ! 	endif
+    !/jh end outcommened
+    !jh ASSORTMENTS: CLEAR CUTS (oldLayer=F)
+  include 'assort_cc.h'
+  energyWood(year,ij,15) = 1527! formerly 1431, 1299
+  !/jh
 
-  else
-   S_branch = max(0.,(stand_all(51,ij)+stand_all(24,ij)+stand_all(28,ij)+stand_all(32,ij)* 0.83 +&
-      stand_all(31,ij)* (1-harvRatio)))
-   S_wood = stand_all(32,ij) *0.17 + stand_all(29,ij) !(1-harvRatio) takes into account of the stem residuals after clearcuts
-  endif
   !energyCut
     stand_all(2,ij) = 0. !!newX
     stand_all(7,ij) = 0.
   stand_all(8,ij) = 0.
     stand_all(10:17,ij) = 0.
     stand_all(19:21,ij) = 0.
-    stand_all(23:38,ij) = 0.
+    !  stand_all(23:38,ij) = 0. !jh pass 37&38 (v&w harvested) through //deactivated (troubleshooting)
+    !NOTE: this means that ,37 is never reset, i.e. the harvests  are there for all consecutive years; now reset to 0 in beginning of layer Loop
+    stand_all(23:36,ij) = 0. !reactivate...
     stand_all(41,ij) = 0.
     stand_all(43,ij) = 0.
     stand_all(47:nVar,ij) = 0.
@@ -1743,24 +1857,33 @@ if(defaultThin == 1.) then
   !energyCut
     S_fol = stand_all(26,ij) + stand_all(33,ij) - wf_STKG
   S_fr = stand_all(27,ij) + stand_all(25,ij) - W_froot
-    if(energyCut==1.) then
-   energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) - W_branch + &
-    (stand_all(32,ij) - W_croot) * 0.3 + &
-      (stand_all(31,ij) - W_stem) * (1-harvRatio)) * energyRatio
-  species = int(max(1.,stand_all(4,ij)))
-if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
-
-     S_branch = max(0.,stand_all(28,ij) + (stand_all(24,ij) - W_branch) * (1-energyRatio) +&
-    stand_all(51,ij) - Wdb + &
-    (0.3 * (1-energyRatio)+0.7) * (stand_all(32,ij) - W_croot) *0.83 + &
-    (stand_all(31,ij)-W_stem)*(1-harvRatio)*(1-energyRatio))
-   S_wood = max(0.,stand_all(29,ij)+(0.3 * (1-energyRatio)+0.7) * (stand_all(32,ij) - W_croot) *0.17)
-  else
-     S_branch = max(0.,stand_all(28,ij) + stand_all(24,ij) - W_branch + stand_all(51,ij) - Wdb + &
-    (stand_all(32,ij) - W_croot) * 0.83+ (stand_all(31,ij) - W_stem) * (1-harvRatio))
-     S_wood = max(0.,stand_all(29,ij)  + (stand_all(32,ij) - W_croot) * 0.17)
-  endif
-  !energyCut
+  !jhassort below: outcommented and moved to include 'assort...'
+  !     if(energyCut==1.) then
+  ! 	 energyWood(year,ij,2) = energyWood(year,ij,2) + (stand_all(24,ij) - W_branch + &
+  ! 		(stand_all(32,ij) - W_croot) * 0.3 + &
+  ! 	    (stand_all(31,ij) - W_stem) * (1-harvRatio)) * energyRatio
+  ! 	species = int(max(1.,stand_all(4,ij)))
+  ! if(pCrobas(2,species)>0.) energyWood(year,ij,1) = energyWood(year,ij,2) / pCrobas(2,species)
+  !
+  !      S_branch = max(0.,stand_all(28,ij) + (stand_all(24,ij) - W_branch) * (1-energyRatio) +&
+  ! 		stand_all(51,ij) - Wdb + &
+  ! 		(0.3 * (1-energyRatio)+0.7) * (stand_all(32,ij) - W_croot) *0.83 + &
+  ! 		(stand_all(31,ij)-W_stem)*(1-harvRatio)*(1-energyRatio))
+  ! 	 S_wood = max(0.,stand_all(29,ij)+(0.3 * (1-energyRatio)+0.7) * (stand_all(32,ij) - W_croot) *0.17)
+  ! 	else
+  !      S_branch = max(0.,stand_all(28,ij) + stand_all(24,ij) - W_branch + stand_all(51,ij) - Wdb + &
+  ! 		(stand_all(32,ij) - W_croot) * 0.83+ (stand_all(31,ij) - W_stem) * (1-harvRatio))
+  !      S_wood = max(0.,stand_all(29,ij)  + (stand_all(32,ij) - W_croot) * 0.17)
+  ! 	endif
+  !   !energyCut
+  !/jh outcommented
+    !jhassort ASSORTMENTS: thinnings
+    include 'assort_thin.h'
+    energyWood(year,ij,15) = 1808 ! formerly 1570 1617
+    ! end assortments (thin)
+  !! ATTENTION: below, all outt()+ aggregates are new/not existent in assortment implemented version
+  !! meaning outt=out+stand... has been outt=stands
+  !! CHECK THIS!!!
 
 
   outt(11,ij,2) = STAND_tot(11)
@@ -1884,8 +2007,8 @@ modOut(year+1,5,1,2) = ETSmean
   Tmin = weatherPRELES(year,:,2) - 3.6
   Tmax = weatherPRELES(year,:,2) + 3.7
 
-FDI(:) = 0. 
-  call fireDist(Cpool_litter_wood,Cpool_litter_green,livegrass,soil_moisture, & 
+FDI(:) = 0.
+  call fireDist(Cpool_litter_wood,Cpool_litter_green,livegrass,soil_moisture, &
     weatherPRELES(year,:,2),NI((1+((year-1)*365)):(365*year)),weatherPRELES(year,:,4),FDI,n_fire_year)
 
   modOut((year+1),47,:,2) = 0.
@@ -1900,6 +2023,25 @@ ETSstart = ETSmean
 !soil and harvested volume outputs
 modOut(:,37,:,1) = modOut(:,30,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil
 modOut(:,38,:,1) = modOut(:,31,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil
+
+!!!!!!!!!!!
+!! jhassort: below was in working assortment version, keep for reference for norway
+!jh replace ,37/38,,1 with taper-based roundwood
+!NOTE: ,38,,1 (Wharvested) used as control dummy for old 37 (Vharvested) for now, replace by biomass later
+! !soil and harvested volume outputs
+! modOut(:,37,:,1) = modOut(:,30,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil
+! modOut(:,38,:,1) = modOut(:,31,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil
+! modOut(:,37,:,1) = energyWood(:,:,4) + energyWood(:,:,5)!stemwood harvested as sawnwood + pulpwood (= roundwood removals, used to meet roundwood demand)
+! if (assortType==2) then !jh ?? why here? overrides all else (before)
+  !modOut(2:(nyears+1),37,:,1) = energyWood(:,:,4) + energyWood(:,:,5) !francesco!!
+!   modOut(:,37,:,1) = 42.
+!x
+! else
+!   modOut(:,37,:,1) = modOut(:,30,:,2) * harvRatio!! harvRatio takes into account the residuals left in the soil
+! endif
+!energyWood(nYears, nLayers, 20)
+!/jh  real (kind=8) :: modOut((nYears+1), nVar, nLayers, 2)
+!!!!!!!!!!! // end reference keeping jhassort
 
 do year = 1,(nYears+1)
   do ijj = 1, nLayers
