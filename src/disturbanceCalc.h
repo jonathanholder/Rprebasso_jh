@@ -34,7 +34,6 @@
 !end if
 ! //END single highest layer wind risk estimation
 
-
 wdistproc(:) = 0.
 wriskLayers(:,:) = 0.
 ! UPDATE: version considering layer with largest H as well as those within a 5m range
@@ -42,17 +41,17 @@ wriskLayers(:,:) = 0.
  ! real (kind=8) :: wdistproc(7) !to replace siteinfodist
 ! DRAFT:
 !real (kind=8)::wrisk_hdomlayers(nLayers), hthresh, htresh_ba !
-hthresh = (maxval(STAND_all(11,:))-5)
-htresh_ba = 0
+hthresh = (maxval(STAND_all(11,:))-5.)
+htresh_ba = 0.
 do i = 1, nLayers
    if(STAND_all(11,i) > hthresh) THEN
  ! setting wrisks to 0 (subroutine inout), to be simplified
-      wrisk5dd1 = 0
-      wrisk5dd2 = 0
-      wrisk5dd3 = 0
-      wrisk0 = 0
-      wrisk5 = 0
-      wrisk = 0
+      wrisk5dd1 = 0.
+      wrisk5dd2 = 0.
+      wrisk5dd3 = 0.
+      wrisk0 = 0.
+      wrisk5 = 0.
+      wrisk = 0.
       call windrisk(siteInfoDist, INT(STAND_all(4,i)), STAND_all(11,i), 0, STAND_all(3,1), STAND_all(5,1), &
       INT(siteInfoDist(2)), wrisk5dd1,wrisk5dd2,wrisk5dd3,wrisk0,wrisk5,wrisk)
       htresh_ba =  htresh_ba+STAND_all(13,i) !collect ba of layers within htresh height range
@@ -178,7 +177,7 @@ V_tot = sum(STAND_all(30,:))
 
 vdam = wdistproc(4)*V_tot
 
-if(outDist(year, 4)>0) then
+if(outDist(year, 4)>0.) then
   outDist(year, 5) = vdam
   outDist(year, 6) = wdistproc(4)
 endif
@@ -211,7 +210,7 @@ if (outDist(year,4)>0.) then !in case of disturbance xif1
 
   ! SALVAGE LOGGING
   if(vdam>=siteInfoDist(5)) then ! threshold for salvage logging
-    siteInfoDist(2) = 0 ! reset thinning counter, i.e. wind disturbance temporarily increases wind risk
+    siteInfoDist(2) = 0. ! reset thinning counter, i.e. wind disturbance temporarily increases wind risk
     call random_number(rndm)
     if(rndm<=siteInfoDist(6)) then
       pHarvTrees = siteInfoDist(7)! if sampled for salvlog set pHarvTrees
